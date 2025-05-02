@@ -39,6 +39,7 @@ jobs:
           export PATH="/usr/lib/ccache:/usr/local/opt/ccache/libexec:$PATH"
 
       - name: Install dependencies
+        uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
         env:
