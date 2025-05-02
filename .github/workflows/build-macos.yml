@@ -39,6 +39,8 @@ jobs:
           export PATH="/usr/lib/ccache:/usr/local/opt/ccache/libexec:$PATH"
 
       - name: Install dependencies
+        with:
+          xcode-version: latest-stable
         env:
           HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: 1
           HOMEBREW_NO_AUTO_UPDATE: 1

@@ -23,7 +23,12 @@ rm -rf \
 
 brew tap copyq/kde utils/github/homebrew/
 
-brew install qt@6
+curl -O https://raw.githubusercontent.com/Homebrew/homebrew-core/refs/heads/master/Formula/q/qt.rb
+sed -i.bak 's|-DCMAKE_OSX_DEPLOYMENT_TARGET=#{MacOS.version}\.0|-DCMAKE_OSX_DEPLOYMENT_TARGET=12.0|g' qt.rb
+mv qt.rb.bak qt.rb
+brew install --build-from-source ./qt.rb
+
+# brew install qt@6
 brew install --verbose \
     copyq/kde/kf6-knotifications \
     copyq/kde/kf6-kstatusnotifieritem
