@@ -17,6 +17,11 @@ jobs:
             bundle_suffix: '-macos-x86_64'
             cmake_preset: macOS-10
 
+          - os: macos-13
+            buildname: macOS 10
+            bundle_suffix: '-macos-10'
+            cmake_preset: macOS-10
+
           - os: macos-14
             buildname: macOS arm64
             bundle_suffix: '-macos-arm64'
@@ -40,6 +45,7 @@ jobs:
 
       - name: Install dependencies
         env:
+          BUILDNAME: ${{ matrix.buildname }}
           HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: 1
           HOMEBREW_NO_AUTO_UPDATE: 1
           HOMEBREW_NO_INSTALL_CLEANUP: 1
