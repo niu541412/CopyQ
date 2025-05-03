@@ -32,8 +32,8 @@ if [[ $BUILDNAME == 'macOS x86_64' ]]; then
     sed -i.bak "s|-DCMAKE_OSX_DEPLOYMENT_TARGET=#{MacOS.version}\.0|-DCMAKE_OSX_DEPLOYMENT_TARGET=${qt_minimum_target}|g" qt.rb
     mv qt.rb.bak qt.rb
     brew install --build-from-source --formula ./qt.rb
-    xcode-select --switch /Library/Developer/CommandLineTools
-    rm -rf /Applications/Xcode*.app
+    # xcode-select --switch /Library/Developer/CommandLineTools
+    # rm -rf /Applications/Xcode*.app
     brew uninstall vulkan-headers vulkan-loader molten-vk node pkgconf
 else
     brew install qt@6
