@@ -16,6 +16,10 @@ jobs:
             buildname: macOS x86_64
             bundle_suffix: '-macos-x86_64'
             cmake_preset: macOS-10
+            cmake_args: >
+              [
+              "-DCMAKE_FIND_FRAMEWORK=LAST"
+              ]
 
           - os: macos-13
             buildname: macOS 10
@@ -57,6 +61,7 @@ jobs:
           configurePreset: '${{ matrix.cmake_preset }}'
           buildPreset: '${{ matrix.cmake_preset }}'
           packagePreset: '${{ matrix.cmake_preset }}'
+          configurePresetAdditionalArgs: ${{ matrix.cmake_args || '[]' }}
 
       - name: Create gnupg directory for tests
         run: mkdir -p ~/.gnupg && chmod go-rwx ~/.gnupg
