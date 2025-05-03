@@ -24,7 +24,6 @@ rm -rf \
 brew tap copyq/kde utils/github/homebrew/
 
 echo "--------- $(xcrun --show-sdk-path) ---------"
-echo "--------- $(locate libpng|grep dylib) ---------"
 
 # if [[ $(uname -m) == 'x86_64' ]]; then
 if [[ $BUILDNAME == 'macOS x86_64' ]]; then
@@ -41,8 +40,9 @@ else
 fi
 
 echo "+++++++++ $(xcrun --show-sdk-path) +++++++++"
-echo "+++++++++ $(locate libpng|grep dylib) +++++++++"
 
 brew install \
     copyq/kde/kf6-knotifications \
     copyq/kde/kf6-kstatusnotifieritem
+
+brew list --versions
