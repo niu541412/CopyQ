@@ -31,7 +31,7 @@ sed -i.bak \
 qt.rb
 mv qt.rb.bak qt.rb
 brew install --build-from-source ./qt.rb
-brew uninstall vulkan-headers vulkan-loader molten-vk node pkgconf python@3.13
+brew uninstall vulkan-headers vulkan-loader molten-vk node pkgconf
 
 # brew install qt@6
 brew install --verbose \
