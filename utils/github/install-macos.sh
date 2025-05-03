@@ -24,6 +24,7 @@ rm -rf \
 brew tap copyq/kde utils/github/homebrew/
 
 echo "--------- $(xcrun --show-sdk-path) ---------"
+echo "--------- $(locate libpng|grep dylib) ---------"
 
 if [[ $(uname -m) == 'x86_64' ]]; then
     qt_minimum_target=13.0
@@ -32,13 +33,14 @@ if [[ $(uname -m) == 'x86_64' ]]; then
     mv qt.rb.bak qt.rb
     brew install --build-from-source --formula ./qt.rb
     xcoed-select --switch /Library/Developer/CommandLineTools
-    rm -rf /Applications/Xcode.app
+    rm -rf /Applications/Xcode*.app
     brew uninstall vulkan-headers vulkan-loader molten-vk node pkgconf
 else
     brew install qt@6
 fi
 
 echo "+++++++++ $(xcrun --show-sdk-path) +++++++++"
+echo "+++++++++ $(locate libpng|grep dylib) +++++++++"
 
 brew install \
     copyq/kde/kf6-knotifications \
