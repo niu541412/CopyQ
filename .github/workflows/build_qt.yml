@@ -1,5 +1,5 @@
 ---
-name: macOS Build
+name: qt Build
 
 # yamllint disable-line rule:truthy
 on:
