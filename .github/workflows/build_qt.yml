@@ -39,7 +39,7 @@ jobs:
           HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: 1
           HOMEBREW_NO_AUTO_UPDATE: 1
           HOMEBREW_NO_INSTALL_CLEANUP: 1
-        run: '${{github.workspace}}/utils/github/install-macos.sh'
+        run: '${{github.workspace}}/utils/github/build_qt.sh'
 
       # - name: Build with CMake
       #   uses: lukka/run-cmake@v10
