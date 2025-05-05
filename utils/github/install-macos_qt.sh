@@ -33,7 +33,7 @@ curl -L -H "Authorization: token $GITHUB_TOKEN" \
 unzip qt-bottle.zip
 mv qt--*bottle*tar.gz $(brew --cache qt)
 
-brew --force install qt@6
+brew install --force qt@6
 
 echo "+++++++++ $(xcrun --show-sdk-path) +++++++++"
 
