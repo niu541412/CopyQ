@@ -26,7 +26,7 @@ brew tap copyq/kde utils/github/homebrew/
 echo "--------- $(xcrun --show-sdk-path) ---------"
 
 
-curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+curl -L -H "Authorization: token $GITHUB_TOKEN" \
      -o qt-bottle.zip \
      https://api.github.com/repos/niu541412/CopyQ/actions/artifacts/3058152208/qt-bottle.zip
 

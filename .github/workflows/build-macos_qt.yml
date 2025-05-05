@@ -13,7 +13,7 @@ jobs:
       matrix:
         include:
           - os: macos-13
-            buildname: macOS x86_64
+            buildname: macOS own qt
             bundle_suffix: '-macos-x86_64'
             cmake_preset: macOS-10
 
@@ -39,6 +39,8 @@ jobs:
           HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: 1
           HOMEBREW_NO_AUTO_UPDATE: 1
           HOMEBREW_NO_INSTALL_CLEANUP: 1
+          HOMEBREW_NO_INSTALL_FROM_API: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: '${{github.workspace}}/utils/github/install-macos_qt.sh'
 
       - name: Build with CMake
