@@ -31,7 +31,7 @@ if [[ $BUILDNAME == 'macOS qt' ]]; then
     mv qt.rb.bak qt.rb
     brew install qt@6 --only-dependencies
     brew uninstall --ignore-dependencies libpng
-    curl -O  https://github.com/Homebrew/homebrew-core/blob/40568b37c7130bc16445eddfae77b376cbb9a7ec/Formula/lib/libpng.rb
+    curl -O  https://raw.githubusercontent.com/Homebrew/homebrew-core/40568b37c7130bc16445eddfae77b376cbb9a7ec/Formula/lib/libpng.rb
     brew install --formula ./libpng.rb
     brew install --build-from-source --formula ./qt.rb
     brew uninstall vulkan-headers vulkan-loader molten-vk node
