@@ -1,0 +1,63 @@
+---
+name: macOS Build
+
+# yamllint disable-line rule:truthy
+on:
+  - push
+
+jobs:
+  build:
+    name: ${{matrix.buildname}}
+    runs-on: ${{matrix.os}}
+    strategy:
+      matrix:
+        include:
+          - os: macos-13
+            buildname: macOS x86_64
+            bundle_suffix: '-macos-x86_64'
+            cmake_preset: macOS-10
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          fetch-depth: 1
+
+      - name: Enable ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ github.job }}-${{ matrix.os }}
+
+      - name: Set up ccache
+        run: |
+          export PATH="/usr/lib/ccache:/usr/local/opt/ccache/libexec:$PATH"
+
+      - name: Install dependencies
+        env:
+          BUILDNAME: ${{ matrix.buildname }}
+          HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: 1
+          HOMEBREW_NO_AUTO_UPDATE: 1
+          HOMEBREW_NO_INSTALL_CLEANUP: 1
+        run: '${{github.workspace}}/utils/github/install-macos_qt.sh'
+
+      - name: Build with CMake
+        uses: lukka/run-cmake@v10
+        with:
+          configurePreset: '${{ matrix.cmake_preset }}'
+          buildPreset: '${{ matrix.cmake_preset }}'
+          packagePreset: '${{ matrix.cmake_preset }}'
+          configurePresetAdditionalArgs: ${{ matrix.cmake_args || '[]' }}
+
+      - name: Create gnupg directory for tests
+        run: mkdir -p ~/.gnupg && chmod go-rwx ~/.gnupg
+
+      - name: Create macOS bundle
+        working-directory: '${{runner.workspace}}/build/copyq/${{ matrix.cmake_preset }}'
+        run: '${{github.workspace}}/utils/github/bundle-macos.sh'
+
+      - name: Upload macOS bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: 'CopyQ${{ matrix.bundle_suffix }}.dmg'
+          path: '${{runner.workspace}}/build/copyq/${{ matrix.cmake_preset }}/CopyQ.dmg'
