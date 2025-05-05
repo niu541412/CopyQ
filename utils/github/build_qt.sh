@@ -29,10 +29,10 @@ if [[ $BUILDNAME == 'macOS qt' ]]; then
     curl -O https://raw.githubusercontent.com/Homebrew/homebrew-core/refs/heads/master/Formula/q/qt.rb
     sed -i.bak "s|-DCMAKE_OSX_DEPLOYMENT_TARGET=#{MacOS.version}\.0|-DCMAKE_OSX_DEPLOYMENT_TARGET=${qt_minimum_target}|g" qt.rb
     mv qt.rb.bak qt.rb
-    brew install --build-bottle  --formula ./qt.rb
+    brew install qt@6 --only-dependencies
+    brew install --build-from-source --formula ./qt.rb
     brew uninstall vulkan-headers vulkan-loader molten-vk node
-    brew tap --force homebrew/core
-    brew bottle --force-core-tap qt
+    tar -czf qt--6.9.0.bottle.tar.gz -C /usr/local/Cellar qt
 else
     brew install qt@6
 fi

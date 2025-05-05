@@ -29,9 +29,9 @@ curl -L -H "Authorization: token $GITHUB_TOKEN" \
      https://api.github.com/repos/niu541412/CopyQ/actions/artifacts/3058152208/zip
 
 unzip qt-bottle.zip
-mv qt--*bottle*tar.gz $(brew --cache qt)
-
-brew install --force qt@6
+tar xzf qt--*bottle*tar.gz
+mv qt /usr/local/Cellar/
+brew link qt
 
 brew install \
     copyq/kde/kf6-knotifications \
