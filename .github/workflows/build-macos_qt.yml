@@ -1,5 +1,5 @@
 ---
-name: macOS Build
+name: macOS own qt
 
 # yamllint disable-line rule:truthy
 on:
@@ -13,7 +13,7 @@ jobs:
       matrix:
         include:
           - os: macos-13
-            buildname: macOS own qt
+            buildname: macOS x86_64
             bundle_suffix: '-macos-x86_64'
             cmake_preset: macOS-10
 

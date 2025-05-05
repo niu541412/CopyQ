@@ -28,7 +28,7 @@ echo "--------- $(xcrun --show-sdk-path) ---------"
 
 curl -L -H "Authorization: token $GITHUB_TOKEN" \
      -o qt-bottle.zip \
-     https://api.github.com/repos/niu541412/CopyQ/actions/artifacts/3058152208/qt-bottle.zip
+     https://api.github.com/repos/niu541412/CopyQ/actions/artifacts/3058152208/zip
 
 unzip qt-bottle.zip
 mv qt--*bottle*tar.gz $(brew --cache qt)
