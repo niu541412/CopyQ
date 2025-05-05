@@ -25,7 +25,7 @@ brew tap copyq/kde utils/github/homebrew/
 
 echo "--------- $(xcrun --show-sdk-path) ---------"
 
-
+brew install qt@6 --only-dependencies
 curl -L -H "Authorization: token $GITHUB_TOKEN" \
      -o qt-bottle.zip \
      https://api.github.com/repos/niu541412/CopyQ/actions/artifacts/3058152208/zip
@@ -33,7 +33,7 @@ curl -L -H "Authorization: token $GITHUB_TOKEN" \
 unzip qt-bottle.zip
 mv qt--*bottle*tar.gz $(brew --cache qt)
 
-brew install qt@6
+brew --force install qt@6
 
 echo "+++++++++ $(xcrun --show-sdk-path) +++++++++"
 
