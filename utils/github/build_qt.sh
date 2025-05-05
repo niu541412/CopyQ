@@ -37,7 +37,7 @@ if [[ $BUILDNAME == 'macOS qt' ]]; then
     ls -l /usr/local/opt/libpng
     rm -rf /usr/local/Cellar/libpng/1.6.48
     brew link libpng
-    brew install --build-from-source --formula ./qt.rb
+    brew install --build-from-source --formula --ignore-dependencies ./qt.rb
     brew uninstall vulkan-headers vulkan-loader molten-vk node
     tar -czf qt--6.9.0.bottle.tar.gz -C /usr/local/Cellar qt
 else
