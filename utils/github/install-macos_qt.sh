@@ -23,8 +23,6 @@ rm -rf \
 
 brew tap copyq/kde utils/github/homebrew/
 
-echo "--------- $(xcrun --show-sdk-path) ---------"
-
 brew install qt@6 --only-dependencies
 curl -L -H "Authorization: token $GITHUB_TOKEN" \
      -o qt-bottle.zip \
@@ -34,8 +32,6 @@ unzip qt-bottle.zip
 mv qt--*bottle*tar.gz $(brew --cache qt)
 
 brew install --force qt@6
-
-echo "+++++++++ $(xcrun --show-sdk-path) +++++++++"
 
 brew install \
     copyq/kde/kf6-knotifications \

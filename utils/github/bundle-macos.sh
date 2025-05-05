@@ -1,5 +1,8 @@
 #!/bin/bash
 # Creates macOS bundle.
+otool -L "$app_bundle_path/Contents/Frameworks/QtGui.framework/QtGui"
+echo "++++++++++++++++++++++++++++++++++++++++++++++"
+
 set -xeuo pipefail
 
 cpack
