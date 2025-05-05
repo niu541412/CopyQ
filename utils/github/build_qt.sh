@@ -30,7 +30,7 @@ if [[ $BUILDNAME == 'macOS qt' ]]; then
     sed -i.bak "s|-DCMAKE_OSX_DEPLOYMENT_TARGET=#{MacOS.version}\.0|-DCMAKE_OSX_DEPLOYMENT_TARGET=${qt_minimum_target}|g" qt.rb
     mv qt.rb.bak qt.rb
     brew install qt@6 --only-dependencies
-    brew uninstall libpng
+    brew uninstall --ignore-dependencies libpng
     curl -O  https://github.com/Homebrew/homebrew-core/blob/40568b37c7130bc16445eddfae77b376cbb9a7ec/Formula/lib/libpng.rb
     brew install --formula ./libpng.rb
     brew install --build-from-source --formula ./qt.rb
