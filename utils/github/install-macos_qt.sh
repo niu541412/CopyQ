@@ -27,7 +27,7 @@ brew install qt@6 --only-dependencies
 
 # 从最近一次成功的 run 中下载某个 artifact
 RUN_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-    "https://api.github.com/repos/$REPO/actions/workflows/build_qt/runs?branch=main&status=success&per_page=1" |
+    "https://api.github.com/repos/$REPO/actions/workflows/build_qt.yml/runs?branch=main&status=success&per_page=1" |
     jq -r '.workflow_runs[0].id')
 
 ARTIFACT_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
