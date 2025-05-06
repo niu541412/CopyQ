@@ -26,7 +26,7 @@ brew tap copyq/kde utils/github/homebrew/
 brew install qt@6 --only-dependencies
 curl -L -H "Authorization: token $GITHUB_TOKEN" \
      -o qt-bottle.zip \
-     https://api.github.com/repos/niu541412/CopyQ/actions/artifacts/3060789038/zip
+     https://api.github.com/repos/niu541412/CopyQ/actions/artifacts/3064011668/zip
 
 unzip qt-bottle.zip
 tar xzf qt--*bottle*tar.gz
