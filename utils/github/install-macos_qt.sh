@@ -23,8 +23,8 @@ rm -rf \
 
 brew tap copyq/kde utils/github/homebrew/
 
-brew install qt@6 --only-dependencies
-
+# brew install qt@6 --only-dependencies
+brew install qt@6 
 
 # # 从最近一次成功的 run 中下载某个 artifact
 # RUN_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
@@ -48,7 +48,7 @@ curl -L -H "Authorization: token $GITHUB_TOKEN" \
     -o qt-bottle.zip \
     https://api.github.com/repos/niu541412/CopyQ/actions/artifacts/$ARTIFACT_ID/zip
 
-
+rm -rf /usr/local/Cellar/qt
 unzip qt-bottle.zip
 tar xzf qt--*bottle*tar.gz
 mv qt /usr/local/Cellar/
