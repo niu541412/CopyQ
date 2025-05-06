@@ -26,15 +26,15 @@ brew tap copyq/kde utils/github/homebrew/
 brew install qt@6 --only-dependencies
 
 # 从最近一次成功的 run 中下载某个 artifact
-RUN_ID=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+RUN_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
     "https://api.github.com/repos/$REPO/actions/workflows/build_qt.yml/runs?branch=main&status=success&per_page=1" |
     jq -r '.workflow_runs[0].id')
 
-ARTIFACT_ID=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+ARTIFACT_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
     "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID/artifacts" |
     jq -r ".artifacts[] | select(.name==\"qt-bottle\") | .id")
 
-curl -L -H "Authorization: Bearer $GITHUB_TOKEN" \
+curl -L -H "Authorization: token $GITHUB_TOKEN" \
     -o qt-bottle.zip \
     https://api.github.com/repos/niu541412/CopyQ/actions/artifacts/$ARTIFACT_ID/zip
 
