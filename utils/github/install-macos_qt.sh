@@ -26,25 +26,28 @@ brew tap copyq/kde utils/github/homebrew/
 brew install qt@6 --only-dependencies
 
 
-eee=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-    "https://api.github.com/repos/$REPO/actions/workflows/build_qt.yml/runs?branch=main&status=success&per_page=1")
-echo +++++++++++++++++++++++++++++
-echo $eee
-echo +++++++++++++++++++++++++++++
+# # 从最近一次成功的 run 中下载某个 artifact
+# RUN_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+#     "https://api.github.com/repos/$REPO/actions/workflows/build_qt.yml/runs?branch=main&status=success&per_page=1" |
+#     jq -r '.workflow_runs[0].id')
 
+# ARTIFACT_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+#     "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID/artifacts" |
+#     jq -r ".artifacts[] | select(.name==\"qt-bottle\") | .id")
 
-# 从最近一次成功的 run 中下载某个 artifact
-RUN_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-    "https://api.github.com/repos/$REPO/actions/workflows/build_qt.yml/runs?branch=main&status=success&per_page=1" |
-    jq -r '.workflow_runs[0].id')
+# curl -L -H "Authorization: token $GITHUB_TOKEN" \
+#     -o qt-bottle.zip \
+#     https://api.github.com/repos/niu541412/CopyQ/actions/artifacts/$ARTIFACT_ID/zip
+
 
 ARTIFACT_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-    "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID/artifacts" |
+    "https://api.github.com/repos/$REPO/actions/runs/14840720585/artifacts" |
     jq -r ".artifacts[] | select(.name==\"qt-bottle\") | .id")
 
 curl -L -H "Authorization: token $GITHUB_TOKEN" \
     -o qt-bottle.zip \
     https://api.github.com/repos/niu541412/CopyQ/actions/artifacts/$ARTIFACT_ID/zip
+
 
 unzip qt-bottle.zip
 tar xzf qt--*bottle*tar.gz
