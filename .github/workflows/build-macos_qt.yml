@@ -41,6 +41,7 @@ jobs:
           HOMEBREW_NO_INSTALL_CLEANUP: 1
           HOMEBREW_NO_INSTALL_FROM_API: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
         run: '${{github.workspace}}/utils/github/install-macos_qt.sh'
 
       - name: Build with CMake
