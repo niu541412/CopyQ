@@ -27,6 +27,7 @@ if [[ $BUILDNAME == 'macOS old' ]]; then
     brew install qt@6
     mkdir qt-bak
     cp -r /usr/local/Cellar/qt qt-bak/
+    brew uninstall qt@6
     qt_minimum_target=12.0
     curl -O https://raw.githubusercontent.com/Homebrew/homebrew-core/refs/heads/master/Formula/q/qt.rb
     sed -i.bak "s|-DCMAKE_OSX_DEPLOYMENT_TARGET=#{MacOS.version}\.0|-DCMAKE_OSX_DEPLOYMENT_TARGET=${qt_minimum_target}|g" qt.rb
