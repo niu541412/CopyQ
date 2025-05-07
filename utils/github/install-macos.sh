@@ -23,8 +23,6 @@ rm -rf \
 
 brew tap copyq/kde utils/github/homebrew/
 
-echo "--------- $(xcrun --show-sdk-path) ---------"
-
 # if [[ $(uname -m) == 'x86_64' ]]; then
 if [[ $BUILDNAME == 'macOS x86_64' ]]; then
     qt_minimum_target=12.0
@@ -38,10 +36,6 @@ else
     brew install qt@6
 fi
 
-echo "+++++++++ $(xcrun --show-sdk-path) +++++++++"
-
-brew install \
+brew install --verbose \
     copyq/kde/kf6-knotifications \
     copyq/kde/kf6-kstatusnotifieritem
-
-brew list --versions
