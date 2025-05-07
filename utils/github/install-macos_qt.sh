@@ -48,10 +48,14 @@ curl -L -H "Authorization: token $GITHUB_TOKEN" \
     -o qt-bottle.zip \
     https://api.github.com/repos/niu541412/CopyQ/actions/artifacts/$ARTIFACT_ID/zip
 
-rm -rf /usr/local/Cellar/qt
+mkdir qt-bak
+mv /usr/local/Cellar/qt qt-bak/
 unzip qt-bottle.zip
 tar xzf qt--*bottle*tar.gz
 mv qt /usr/local/Cellar/
+
+mv  qt-bak/qt/6.9.0/lib/QtGui.framework/Versions/A /usr/local/Cellar/qt/6.9.0/lib/QtGui.framework/Versions/
+
 brew link qt
 
 brew install \
