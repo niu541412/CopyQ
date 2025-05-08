@@ -3,7 +3,6 @@ project(copyq)
 
 if (APPLE)
     set(COPYQ_EXECUTABLE_NAME "CopyQ")
-    set(CMAKE_FIND_FRAMEWORK LAST)
 else()
     set(COPYQ_EXECUTABLE_NAME copyq)
 endif()
