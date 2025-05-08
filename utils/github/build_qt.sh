@@ -28,18 +28,18 @@ if [[ $BUILDNAME == 'macOS qt' ]]; then
     qt_minimum_target=12.0
     curl -O https://raw.githubusercontent.com/Homebrew/homebrew-core/refs/heads/master/Formula/q/qt.rb
     sed -i.bak "s|-DCMAKE_OSX_DEPLOYMENT_TARGET=#{MacOS.version}\.0|-DCMAKE_OSX_DEPLOYMENT_TARGET=${qt_minimum_target}|g" qt.rb
-    mv qt.rb.bak qt.rb
-    brew install --build-from-source --only-dependencies  qt@6
-    # brew uninstall --ignore-dependencies libpng
-    # curl -O  https://raw.githubusercontent.com/Homebrew/homebrew-core/40568b37c7130bc16445eddfae77b376cbb9a7ec/Formula/lib/libpng.rb
-    # brew install --formula ./libpng.rb
-    brew unlink libpng
-    mv /usr/local/Cellar/libpng/1.6.48 ~/
-    brew link libpng
-    mv ~/1.6.48 /usr/local/Cellar/libpng/
+    awk '{print}/-DQT_FEATURE_ffmpeg=OFF/{print "\t-DCMAKE_FIND_FRAMEWORK=NEVER"}' qt.rb.bak > qt.rb
+    # brew install --build-from-source --only-dependencies  qt@6
+    # # brew uninstall --ignore-dependencies libpng
+    # # curl -O  https://raw.githubusercontent.com/Homebrew/homebrew-core/40568b37c7130bc16445eddfae77b376cbb9a7ec/Formula/lib/libpng.rb
+    # # brew install --formula ./libpng.rb
+    # brew unlink libpng
+    # mv /usr/local/Cellar/libpng/1.6.48 ~/
+    # brew link libpng
+    # mv ~/1.6.48 /usr/local/Cellar/libpng/
     brew install --build-from-source --formula ./qt.rb
     brew uninstall vulkan-headers vulkan-loader molten-vk node
-    tar -czf qt--6.9.0.bottle.tar.gz -C /usr/local/Cellar qt
+    tar -czf qt6--bottle.tar.gz -C /usr/local/Cellar qt
 else
     brew install qt@6
 fi

@@ -51,7 +51,7 @@ curl -L -H "Authorization: token $GITHUB_TOKEN" \
 mkdir qt-bak
 mv /usr/local/Cellar/qt qt-bak/
 unzip qt-bottle.zip
-tar xzf qt--*bottle*tar.gz
+tar xzf qt6--bottle.tar.gz
 cp -r qt /usr/local/Cellar/
 rm -r /usr/local/Cellar/qt/6.9.0/lib/QtGui.framework/Versions/A
 mv  qt-bak/qt/6.9.0/lib/QtGui.framework/Versions/A /usr/local/Cellar/qt/6.9.0/lib/QtGui.framework/Versions/
