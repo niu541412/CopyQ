@@ -41,7 +41,7 @@ brew install qt@6
 
 
 ARTIFACT_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-    "https://api.github.com/repos/$REPO/actions/runs/14840720585/artifacts" |
+    "https://api.github.com/repos/$REPO/actions/runs/14923128075/artifacts" |
     jq -r ".artifacts[] | select(.name==\"qt-bottle\") | .id")
 
 curl -L -H "Authorization: token $GITHUB_TOKEN" \
