@@ -41,13 +41,14 @@ brew install qt@6
 
 
 ARTIFACT_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-    "https://api.github.com/repos/$REPO/actions/runs/14923128075/artifacts" |
+    "https://api.github.com/repos/$REPO/actions/runs/14924714241/artifacts" |
     jq -r ".artifacts[] | select(.name==\"qt-bottle\") | .id")
 
 curl -L -H "Authorization: token $GITHUB_TOKEN" \
     -o qt-bottle.zip \
     https://api.github.com/repos/niu541412/CopyQ/actions/artifacts/$ARTIFACT_ID/zip
 
+brew uninstall vulkan-headers vulkan-loader molten-vk node
 mkdir qt-bak
 mv /usr/local/Cellar/qt qt-bak/
 unzip qt-bottle.zip
@@ -55,8 +56,6 @@ tar xzf qt6--bottle.tar.gz
 cp -r qt /usr/local/Cellar/
 rm -r /usr/local/Cellar/qt/6.9.0/lib/QtGui.framework/Versions/A
 mv  qt-bak/qt/6.9.0/lib/QtGui.framework/Versions/A /usr/local/Cellar/qt/6.9.0/lib/QtGui.framework/Versions/
-
-brew link qt
 
 brew install \
     copyq/kde/kf6-knotifications \
