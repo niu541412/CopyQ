@@ -48,7 +48,6 @@ curl -L -H "Authorization: token $GITHUB_TOKEN" \
     -o qt-bottle.zip \
     https://api.github.com/repos/niu541412/CopyQ/actions/artifacts/$ARTIFACT_ID/zip
 
-brew uninstall vulkan-headers vulkan-loader molten-vk node
 mkdir qt-bak
 mv /usr/local/Cellar/qt qt-bak/
 unzip qt-bottle.zip
