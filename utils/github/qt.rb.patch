@@ -6,8 +6,8 @@
  
 +    inreplace "qtbase/src/corelib/kernel/qcore_mac.mm",
 +              "(current.majorVersion() == 10 && current.minorVersion() >= 16)", 
-+              "(current.majorVersion() == 10 && current.minorVersion() >= 16) || 
-+              (current.majorVersion() == 11) || (current.majorVersion() == 12)"
++              "((current.majorVersion() == 10 && current.minorVersion() >= 16) || 
++              (current.majorVersion() == 11) || (current.majorVersion() == 12))"
 +
 +    inreplace "qtbase/src/3rdparty/libpng/png.c",
 +              "Application built with",
