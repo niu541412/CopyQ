@@ -47,7 +47,7 @@ if [[ $BUILDNAME == 'macOS old' ]]; then
      # Modify Assistant path as we manually move `*.app` bundles from `bin` to `libexec`.
      # This fixes invocation of Assistant via the Help menu of apps like Designer and
      # Linguist as they originally relied on Assistant.app being in `bin`.
-@@ -219,7 +224,21 @@
+@@ -219,7 +224,22 @@
        cmake_args << "-DBUILD_qtwebengine=OFF" if MacOS::Xcode.version < "15.3"
  
        %W[
@@ -62,6 +62,7 @@ if [[ $BUILDNAME == 'macOS old' ]]; then
 +        -DFEATURE_vulkan=OFF
 +        -DFEATURE_opengl=OFF
 +        -DFEATURE_network=OFF
++        -DBUILD_qtgraphs=OFF
 +        -DBUILD_qtmultimedia=OFF
 +        -DBUILD_qtwebview=OFF
 +        -DBUILD_qtquick3d=OFF
