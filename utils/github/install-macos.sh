@@ -31,8 +31,9 @@ if [[ $BUILDNAME == 'macOS old' ]]; then
     
     curl -O https://raw.githubusercontent.com/Homebrew/homebrew-core/refs/heads/master/Formula/q/qt.rb
     patch qt.rb utils/github/qt.rb.patch
-    brew install --build-from-source --formula ./qt.rb
+    brew install --build-from-source --formula ./qt.rb --debug
     brew uninstall vulkan-headers vulkan-loader molten-vk node
+    cat /private/tmp/qt*202505*/qt*/qtbase/src/3rdparty/libpng/png.c|grep -A3 libpng
 
     # rm -r /usr/local/Cellar/qt/6.9.0/lib/QtGui.framework/Versions/A
     # mv qt-bak/qt/6.9.0/lib/QtGui.framework/Versions/A /usr/local/Cellar/qt/6.9.0/lib/QtGui.framework/Versions/
