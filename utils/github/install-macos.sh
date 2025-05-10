@@ -4,19 +4,19 @@ set -xeuo pipefail
 
 # Create repository for Homebrew.
 (
-    cd utils/github/homebrew/
-    git init .
-    git add .
-    git commit -m "Initial"
+     cd utils/github/homebrew/
+     git init .
+     git add .
+     git commit -m "Initial"
 )
 
 # workaround for symlink issues
 rm -rf \
-    /usr/local/bin/2to3* \
-    /usr/local/bin/idle3* \
-    /usr/local/bin/pydoc3* \
-    /usr/local/bin/python3* \
-    /usr/local/bin/python3-config*
+     /usr/local/bin/2to3* \
+     /usr/local/bin/idle3* \
+     /usr/local/bin/pydoc3* \
+     /usr/local/bin/python3* \
+     /usr/local/bin/python3-config*
 
 # Install Homebrew: https://brew.sh/
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
@@ -24,24 +24,46 @@ rm -rf \
 brew tap copyq/kde utils/github/homebrew/
 
 if [[ $BUILDNAME == 'macOS old' ]]; then
-    # brew install qt@6
-    # mkdir qt-bak
-    # cp -r /usr/local/Cellar/qt qt-bak/
-    # brew uninstall qt@6
-    
-    (curl -kOs https://raw.github.com/gist/1515915/uninstall-mono.sh;chmod +x ./uninstall-mono.sh;./uninstall-mono.sh) 2>&1 | tee uninstall-mono.log
+     # libpng version mismatch issue https://stackoverflow.com/questions/36523911#answer-68936263
+     curl -kOs https://raw.github.com/gist/1515915/uninstall-mono.sh
+     chmod +x ./uninstall-mono.sh
+     ./uninstall-mono.sh 2>&1
 
-    curl -O https://raw.githubusercontent.com/Homebrew/homebrew-core/refs/heads/master/Formula/q/qt.rb
-    patch qt.rb utils/github/qt.rb.patch
-    brew install --build-from-source --formula ./qt.rb --debug
-    # brew uninstall vulkan-headers vulkan-loader molten-vk node
+     # patch and build qt6 locally
+     curl -O https://raw.githubusercontent.com/Homebrew/homebrew-core/refs/heads/master/Formula/q/qt.rb
+     
+     patch qt.rb <<'EOF'
+--- qt.rb
++++ qt.rb
+@@ -161,6 +161,11 @@
+     inreplace "qtwebengine/src/3rdparty/gn/src/base/files/file_util_posix.cc",
+               "FilePath(full_path)", "FilePath(input)"
+ 
++    inreplace "qtbase/src/corelib/kernel/qcore_mac.mm",
++              "(current.majorVersion() == 10 && current.minorVersion() >= 16)", 
++              "((current.majorVersion() == 10 && current.minorVersion() >= 16) || 
++              (current.majorVersion() == 11) || (current.majorVersion() == 12))"
++
+     # Modify Assistant path as we manually move `*.app` bundles from `bin` to `libexec`.
+     # This fixes invocation of Assistant via the Help menu of apps like Designer and
+     # Linguist as they originally relied on Assistant.app being in `bin`.
+@@ -219,7 +224,7 @@
+       cmake_args << "-DBUILD_qtwebengine=OFF" if MacOS::Xcode.version < "15.3"
+ 
+       %W[
+-        -DCMAKE_OSX_DEPLOYMENT_TARGET=#{MacOS.version}.0
++        -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0
+         -DQT_FEATURE_ffmpeg=OFF
+       ]
+     else
+EOF
 
-    # rm -r /usr/local/Cellar/qt/6.9.0/lib/QtGui.framework/Versions/A
-    # mv qt-bak/qt/6.9.0/lib/QtGui.framework/Versions/A /usr/local/Cellar/qt/6.9.0/lib/QtGui.framework/Versions/
+     brew install --build-from-source --formula ./qt.rb
+     # brew uninstall vulkan-headers vulkan-loader molten-vk node
 else
-    brew install qt@6
+     brew install qt@6
 fi
 
 brew install --verbose \
-    copyq/kde/kf6-knotifications \
-    copyq/kde/kf6-kstatusnotifieritem
+     copyq/kde/kf6-knotifications \
+     copyq/kde/kf6-kstatusnotifieritem
