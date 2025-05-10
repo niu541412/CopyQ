@@ -4,19 +4,19 @@ set -xeuo pipefail
 
 # Create repository for Homebrew.
 (
-     cd utils/github/homebrew/
-     git init .
-     git add .
-     git commit -m "Initial"
+    cd utils/github/homebrew/
+    git init .
+    git add .
+    git commit -m "Initial"
 )
 
 # workaround for symlink issues
 rm -rf \
-     /usr/local/bin/2to3* \
-     /usr/local/bin/idle3* \
-     /usr/local/bin/pydoc3* \
-     /usr/local/bin/python3* \
-     /usr/local/bin/python3-config*
+    /usr/local/bin/2to3* \
+    /usr/local/bin/idle3* \
+    /usr/local/bin/pydoc3* \
+    /usr/local/bin/python3* \
+    /usr/local/bin/python3-config*
 
 # Install Homebrew: https://brew.sh/
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
@@ -24,18 +24,18 @@ rm -rf \
 brew tap copyq/kde utils/github/homebrew/
 
 if [[ $BUILDNAME == 'macOS old' ]]; then
-     # libpng version mismatch issue https://stackoverflow.com/questions/36523911#answer-68936263
-     curl -kOs https://gist.githubusercontent.com/nicerobot/1515915/raw/uninstall-mono.sh
-     chmod +x ./uninstall-mono.sh
-     ./uninstall-mono.sh 2>&1
+    # libpng version mismatch issue https://stackoverflow.com/questions/36523911#answer-68936263
+    curl -kOs https://gist.githubusercontent.com/nicerobot/1515915/raw/uninstall-mono.sh
+    chmod +x ./uninstall-mono.sh
+    ./uninstall-mono.sh
 
-     # patch and build qt6 locally
-     curl -O https://raw.githubusercontent.com/Homebrew/homebrew-core/refs/heads/master/Formula/q/qt.rb
-     
-     patch qt.rb <<'EOF'
+    # patch then build qt6 locally
+    curl -O https://raw.githubusercontent.com/Homebrew/homebrew-core/refs/heads/master/Formula/q/qt.rb
+
+    patch qt.rb <<'EOF'
 --- qt.rb
 +++ qt.rb
-@@ -161,6 +161,11 @@
+@@ -161,6 +161,16 @@
      inreplace "qtwebengine/src/3rdparty/gn/src/base/files/file_util_posix.cc",
                "FilePath(full_path)", "FilePath(input)"
  
@@ -53,17 +53,22 @@ if [[ $BUILDNAME == 'macOS old' ]]; then
        %W[
 -        -DCMAKE_OSX_DEPLOYMENT_TARGET=#{MacOS.version}.0
 +        -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0
++        -DQT_BUILD_TESTS=OFF
++        -DQT_BUILD_EXAMPLES=OFF
++        -DQT_BUILD_TOOLS=OFF
++        -DQT_BUILD_DOCS=OFF
++        -DFEATURE_widgets=OFF 
          -DQT_FEATURE_ffmpeg=OFF
        ]
      else
 EOF
 
-     brew install --build-from-source --formula ./qt.rb
-     # brew uninstall vulkan-headers vulkan-loader molten-vk node
+    brew install --build-from-source --formula ./qt.rb
+    # brew uninstall vulkan-headers vulkan-loader molten-vk node
 else
-     brew install qt@6
+    brew install qt@6
 fi
 
 brew install --verbose \
-     copyq/kde/kf6-knotifications \
-     copyq/kde/kf6-kstatusnotifieritem
+    copyq/kde/kf6-knotifications \
+    copyq/kde/kf6-kstatusnotifieritem
