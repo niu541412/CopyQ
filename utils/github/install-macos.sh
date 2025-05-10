@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Installs build dependencies.
+ls /Library/Frameworks
+
 set -xeuo pipefail
 
 # Create repository for Homebrew.
