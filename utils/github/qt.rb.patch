@@ -1,6 +1,6 @@
 --- qt.rb
 +++ qt.rb
-@@ -161,6 +161,15 @@
+@@ -161,6 +161,19 @@
      inreplace "qtwebengine/src/3rdparty/gn/src/base/files/file_util_posix.cc",
                "FilePath(full_path)", "FilePath(input)"
  
@@ -9,9 +9,13 @@
 +              "((current.majorVersion() == 10 && current.minorVersion() >= 16) || 
 +              (current.majorVersion() == 11) || (current.majorVersion() == 12))"
 +
++    inreplace "qtbase/src/3rdparty/libpng/png.c",
++              "Application built with libpng", 
++              "qtbase: App built with libpng"
++
 +    inreplace "qtwebengine/src/3rdparty/chromium/third_party/libpng/png.c",
 +              "Application built with libpng", 
-+              "OOOOOH: App built with libpng"
++              "qtwebengine: App built with libpng"
 +
      # Modify Assistant path as we manually move `*.app` bundles from `bin` to `libexec`.
      # This fixes invocation of Assistant via the Help menu of apps like Designer and
