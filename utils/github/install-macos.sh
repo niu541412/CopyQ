@@ -30,7 +30,7 @@ if [[ $BUILDNAME == 'macOS old' ]]; then
     # brew uninstall qt@6
     
     ### libpng
-    find /usr/local /opt /usr -name "libpng*.dylib" 2>/dev/null
+    find /usr/local /usr -name "libpng*.dylib" 2>/dev/null
     pkg-config --modversion libpng
     pkg-config --cflags libpng
     pkg-config --libs libpng
@@ -43,7 +43,7 @@ if [[ $BUILDNAME == 'macOS old' ]]; then
     cat /private/tmp/qt*202505*/qt*/qtbase/src/3rdparty/libpng/png.c|grep -A3 libpng
 
     ### libpng
-    find /usr/local /opt /usr -name "libpng*.dylib" 2>/dev/null
+    find /usr/local /usr -name "libpng*.dylib" 2>/dev/null
     pkg-config --modversion libpng
     pkg-config --cflags libpng
     pkg-config --libs libpng
