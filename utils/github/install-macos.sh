@@ -35,7 +35,7 @@ if [[ $BUILDNAME == 'macOS old' ]]; then
     patch qt.rb <<'EOF'
 --- qt.rb
 +++ qt.rb
-@@ -161,6 +161,16 @@
+@@ -161,6 +161,11 @@
      inreplace "qtwebengine/src/3rdparty/gn/src/base/files/file_util_posix.cc",
                "FilePath(full_path)", "FilePath(input)"
  
@@ -47,7 +47,7 @@ if [[ $BUILDNAME == 'macOS old' ]]; then
      # Modify Assistant path as we manually move `*.app` bundles from `bin` to `libexec`.
      # This fixes invocation of Assistant via the Help menu of apps like Designer and
      # Linguist as they originally relied on Assistant.app being in `bin`.
-@@ -219,7 +224,7 @@
+@@ -219,7 +224,21 @@
        cmake_args << "-DBUILD_qtwebengine=OFF" if MacOS::Xcode.version < "15.3"
  
        %W[
@@ -57,7 +57,16 @@ if [[ $BUILDNAME == 'macOS old' ]]; then
 +        -DQT_BUILD_EXAMPLES=OFF
 +        -DQT_BUILD_TOOLS=OFF
 +        -DQT_BUILD_DOCS=OFF
-+        -DFEATURE_widgets=OFF 
++        -DFEATURE_widgets=OFF
++        -DFEATURE_dbus=OFF
++        -DFEATURE_vulkan=OFF
++        -DFEATURE_opengl=OFF
++        -DFEATURE_network=OFF
++        -DBUILD_qtmultimedia=OFF
++        -DBUILD_qtwebview=OFF
++        -DBUILD_qtquick3d=OFF
++        -DBUILD_qt3d=OFF
++        -DBUILD_qtchart=OFF
          -DQT_FEATURE_ffmpeg=OFF
        ]
      else
