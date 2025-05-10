@@ -25,7 +25,7 @@ brew tap copyq/kde utils/github/homebrew/
 
 if [[ $BUILDNAME == 'macOS old' ]]; then
      # libpng version mismatch issue https://stackoverflow.com/questions/36523911#answer-68936263
-     curl -kOs https://raw.github.com/gist/1515915/uninstall-mono.sh
+     curl -kOs https://gist.githubusercontent.com/nicerobot/1515915/raw/uninstall-mono.sh
      chmod +x ./uninstall-mono.sh
      ./uninstall-mono.sh 2>&1
 
