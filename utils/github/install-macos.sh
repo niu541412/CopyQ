@@ -10,11 +10,16 @@ set -xeuo pipefail
     git commit -m "Initial"
 )
 
+# workaround for symlink issues
+rm -rf \
+    /usr/local/bin/2to3* \
+    /usr/local/bin/idle3* \
+    /usr/local/bin/pydoc3* \
+    /usr/local/bin/python3* \
+    /usr/local/bin/python3-config*
+
 # Install Homebrew: https://brew.sh/
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
-
-# workaround for symlink issues
-brew unlink python
 
 brew tap copyq/kde utils/github/homebrew/
 
@@ -23,6 +28,10 @@ if [[ $BUILDNAME == 'macOS old' ]]; then
     curl -kOs https://gist.githubusercontent.com/nicerobot/1515915/raw/uninstall-mono.sh
     chmod +x ./uninstall-mono.sh
     ./uninstall-mono.sh
+
+    # fix python3.13 symlink issue
+    brew install python@3.13
+    brew link --overwrite python@3.13
 
     # patch then build qt@6 locally，besides exclude some modules and features to reduce build time.
     curl -O https://raw.githubusercontent.com/Homebrew/homebrew-core/refs/heads/master/Formula/q/qt.rb
