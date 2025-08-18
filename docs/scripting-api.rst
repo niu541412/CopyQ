@@ -571,13 +571,13 @@ unlike in GUI, where row numbers start from 1 by default.
    Runs command for items in current tab.
 
    If rows arguments is specified, ``%1`` in the command will be replaced with
-   concatenated text of the rows.
+   concatenated text of the rows. If a row is negative, the text is taken from
+   the clipboard.
 
    If no rows are specified, ``%1`` in the command will be replaced with
    clipboard text.
 
-   The concatenated text (if rows are defined) or clipboard text is also passed
-   on standard input of the command.
+   The concatenated text is also passed on standard input of the command.
 
 .. js:function:: popup(title, message, [time=8000])
 
@@ -2094,6 +2094,45 @@ Types
 
        Exit code
 
+.. js:class:: NetworkRequest
+
+   Make HTTP requests.
+
+   Example:
+
+   .. code-block:: js
+
+       let req = NetworkRequest();
+
+       # allow redirects
+       req.maxRedirects = 5;
+
+       # set request headers
+       req.headers = {
+          'User-Agent': req.headers['User-Agent'],
+          'Accept': 'application/json',
+       };
+
+       # create JSON data
+       const data = JSON.stringify({text: 'Hello, **world**!'});
+
+       # send POST request
+       const reply = req.request(
+           'POST', 'https://api.github.com/markdown', data)
+
+       # the request is synchronous and may not be finished
+       # until a property is called (like reply.data or reply.status)
+       if (!reply.finished) { serverLog('Processing...'); }
+       print(reply.data);
+
+   .. js:attribute:: headers
+
+       Object with HTTP headers
+
+   .. js:attribute:: maxRedirects
+
+       Maximum number of redirects to follow (default is 0)
+
 .. js:class:: NetworkReply
 
    Received network reply object.
@@ -2122,6 +2161,11 @@ Types
 
        True only if request has been completed, false only for unfinished
        asynchronous requests
+
+   .. js:attribute:: url
+
+       URL of the final request (may be different from the original if
+       redirects are enabled)
 
 .. js:class:: Command
 
