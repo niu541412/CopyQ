@@ -17,13 +17,18 @@ jobs:
       matrix:
         include:
           - os: macos-13
-            buildname: macOS 13
-            bundle_suffix: '-macos-13'
+            buildname: macOS old
+            bundle_suffix: '-macos-x86_64_macOS12'
+            cmake_preset: macOS-10
+
+          - os: macos-13
+            buildname: macOS x86_64
+            bundle_suffix: '-macos-x86_64'
             cmake_preset: macOS-13
 
           - os: macos-14
-            buildname: macOS 12 M1
-            bundle_suffix: '-macos-12-m1'
+            buildname: macOS arm64
+            bundle_suffix: '-macos-arm64'
             cmake_preset: macOS-12-m1
 
     steps:
@@ -44,6 +49,7 @@ jobs:
 
       - name: Install dependencies
         env:
+          BUILDNAME: ${{ matrix.buildname }}
           HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: 1
           HOMEBREW_NO_AUTO_UPDATE: 1
           HOMEBREW_NO_INSTALL_CLEANUP: 1
