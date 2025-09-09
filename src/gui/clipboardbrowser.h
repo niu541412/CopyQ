@@ -329,7 +329,7 @@ class ClipboardBrowser final : public QListView
 
         void setEditorWidget(ItemEditorWidget *editor, bool changeClipboard = false);
 
-        void editItem(const QModelIndex &index, const QString &format, bool changeClipboard = false);
+        void editItem(const QModelIndex &index, const QString &format = QString(), bool changeClipboard = false);
 
         void updateEditorGeometry();
 
@@ -353,7 +353,7 @@ class ClipboardBrowser final : public QListView
 
         /// Removes indexes without notifying or asking plugins.
         void dropIndexes(const QModelIndexList &indexes);
-        void dropIndexes(const QList<QPersistentModelIndex> &indexes);
+        void dropIndexes(QList<QPersistentModelIndex> &indexes);
 
         void focusEditedIndex();
 

@@ -2118,6 +2118,10 @@ int ScriptableProxy::inputDialog(const NamedValueList &values)
             createAndSetWidget<QLabel>("text", value.value, parent);
         else if (value.name == ".defaultChoice")
             inputDialog.defaultChoice = value.value.toString();
+        else if (value.name == ".modal")
+            dialog.setModal(value.value.toBool());
+        else if (value.name == ".onTop")
+            dialog.setWindowFlag(Qt::WindowStaysOnTopHint, value.value.toBool());
         else
             widgets.append( createWidget(value.name, value.value, &inputDialog) );
     }
@@ -2590,6 +2594,11 @@ QByteArray ScriptableProxy::getClipboardData(const QString &mime, ClipboardMode 
     if (mime == "?")
         return data->formats().join("\n").toUtf8() + '\n';
 
+    if (mime.isEmpty()) {
+        const auto dataMap = cloneData(data, {mimeTextUtf8, mimeText, mimeUriList});
+        return getTextData(dataMap).toUtf8();
+    }
+
     return cloneData(data, QStringList(mime)).value(mime).toByteArray();
 }
 
@@ -2652,6 +2661,9 @@ QByteArray ScriptableProxy::itemData(const QString &tabName, int i, const QStrin
 
     if (mime == mimeItems)
         return serializeData(data);
+
+    if (mime.isEmpty())
+        return getTextData(data).toUtf8();
 
     return data.value(mime).toByteArray();
 }

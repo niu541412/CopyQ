@@ -227,6 +227,13 @@ void Tests::commandsWriteRead()
         CommandException, "Unexpected uneven number of mimeType/data arguments");
 }
 
+void Tests::commandsReadUtf8ByDefault()
+{
+    RUN("add({[mimeText]: 'A', [mimeTextUtf8]: 'B'})", "");
+    RUN("read(mimeText, 0)", "A");
+    RUN("read(0)", "B");
+}
+
 void Tests::commandChange()
 {
     RUN("add" << "C" << "B" << "A", "");
@@ -368,6 +375,19 @@ void Tests::commandDialog()
     runMultiple(
         [&]() { RUN(WITH_TIMEOUT "dialog('.title', 'Remove Items', '.label', 'Remove all items?') === true", "true\n"); },
         [&]() { RUN(Args() << "keys" << "focus::QPushButton in dialog_Remove Items:QDialog" << "ENTER", ""); }
+    );
+
+    RUN(Args() << "keys" << clipboardBrowserId, "");
+    const QByteArray script2 = R"(
+        dialog(
+            '.modal', true,
+            '.onTop', true,
+            'text', 'DEFAULT',
+        )
+    )";
+    runMultiple(
+        [&]() { RUN(WITH_TIMEOUT + script2, "DEFAULT\n"); },
+        [&]() { RUN(Args() << "keys" << "focus::QLineEdit in :QDialog" << "ENTER", ""); }
     );
 }
 

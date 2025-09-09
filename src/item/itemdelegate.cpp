@@ -5,7 +5,6 @@
 #include "common/client_server.h"
 #include "common/contenttype.h"
 #include "common/mimetypes.h"
-#include "common/sanitize_text_document.h"
 #include "common/textdata.h"
 #include "common/timer.h"
 #include "gui/clipboardbrowser.h"
@@ -237,6 +236,16 @@ void ItemDelegate::updateItemSize(const QModelIndex &index, QSize itemWidgetSize
 ItemEditorWidget *ItemDelegate::createCustomEditor(
         QWidget *parent, const QModelIndex &index, const QString &format)
 {
+    // If format is empty, try to find most suitable text format to edit.
+    if ( format.isEmpty() ) {
+        const QVariantMap data = m_sharedData->itemFactory->data(index);
+        for (const auto &format2 : {mimeHtml, mimeTextUtf8, mimeText, mimeUriList}) {
+            if ( data.contains(format2) )
+                return createCustomEditor(parent, index, format2);
+        }
+        return nullptr;
+    }
+
     // Refuse editing non-text data
     if ( format != mimeItemNotes && !format.startsWith(QLatin1String("text/")) )
         return nullptr;
@@ -254,7 +263,6 @@ ItemEditorWidget *ItemDelegate::createCustomEditor(
     if ( format == mimeText && data.contains(mimeHtml) ) {
         const QString html = getTextData(data, mimeHtml);
         editor->setHtml(html);
-        sanitizeTextDocument(editor->document());
     } else {
         const QString text = getTextData(data, format);
         editor->setPlainText(text);
