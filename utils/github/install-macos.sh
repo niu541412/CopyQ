@@ -40,20 +40,20 @@ if [[ $BUILDNAME == 'macOS old' ]]; then
     patch qt.rb <<'EOF'
 --- qt.rb
 +++ qt.rb
-@@ -161,6 +161,11 @@
+@@ -177,6 +177,11 @@ class Qt < Formula
+     # because on macOS `/tmp` -> `/private/tmp`
      inreplace "qtwebengine/src/3rdparty/gn/src/base/files/file_util_posix.cc",
                "FilePath(full_path)", "FilePath(input)"
- 
++    
 +    inreplace "qtbase/src/corelib/kernel/qcore_mac.mm",
 +              "(current.majorVersion() == 10 && current.minorVersion() >= 16)", 
 +              "((current.majorVersion() == 10 && current.minorVersion() >= 16) || 
 +              (current.majorVersion() == 11) || (current.majorVersion() == 12))"
-+
+ 
      # Modify Assistant path as we manually move `*.app` bundles from `bin` to `libexec`.
      # This fixes invocation of Assistant via the Help menu of apps like Designer and
-     # Linguist as they originally relied on Assistant.app being in `bin`.
-@@ -219,7 +224,10 @@
-       cmake_args << "-DBUILD_qtwebengine=OFF" if MacOS::Xcode.version < "15.3"
+@@ -238,7 +243,10 @@ class Qt < Formula
+       cmake_args << "-DQT_FORCE_WARN_APPLE_SDK_AND_XCODE_CHECK=ON" if MacOS.version <= :monterey
  
        %W[
 -        -DCMAKE_OSX_DEPLOYMENT_TARGET=#{MacOS.version}.0
