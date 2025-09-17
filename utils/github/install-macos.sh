@@ -65,7 +65,7 @@ if [[ $BUILDNAME == 'macOS old' ]]; then
      else
 EOF
 
-    HOMEBREW_DEVELOPER=1 brew install --build-from-source --formula ./qt.rb --verbose
+    HOMEBREW_DEVELOPER=1 brew install --build-from-source --formula ./qt.rb
     # brew uninstall vulkan-headers vulkan-loader molten-vk node
 else
     brew install qt@6
