@@ -40,11 +40,10 @@ if [[ $BUILDNAME == 'macOS old' ]]; then
     patch qt.rb <<'EOF'
 --- qt.rb
 +++ qt.rb
-@@ -177,6 +177,11 @@ class Qt < Formula
+@@ -182,6 +182,10 @@ class Qt < Formula
      # because on macOS `/tmp` -> `/private/tmp`
      inreplace "qtwebengine/src/3rdparty/gn/src/base/files/file_util_posix.cc",
                "FilePath(full_path)", "FilePath(input)"
-+    
 +    inreplace "qtbase/src/corelib/kernel/qcore_mac.mm",
 +              "(current.majorVersion() == 10 && current.minorVersion() >= 16)", 
 +              "((current.majorVersion() == 10 && current.minorVersion() >= 16) || 
@@ -52,14 +51,15 @@ if [[ $BUILDNAME == 'macOS old' ]]; then
  
      # Modify Assistant path as we manually move `*.app` bundles from `bin` to `libexec`.
      # This fixes invocation of Assistant via the Help menu of apps like Designer and
-@@ -238,7 +243,9 @@ class Qt < Formula
-       cmake_args << "-DQT_FORCE_WARN_APPLE_SDK_AND_XCODE_CHECK=ON" if MacOS.version <= :monterey
+@@ -251,7 +255,10 @@ class Qt < Formula
+       end
  
        %W[
--        -DCMAKE_OSX_DEPLOYMENT_TARGET=#{MacOS.version}.0
+-        -DCMAKE_OSX_DEPLOYMENT_TARGET=#{deploy}
 +        -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0
-+        -DQT_BUILD_TESTS=OFF -DQT_BUILD_EXAMPLES=OFF -DQT_BUILD_TOOLS=OFF -DQT_BUILD_DOCS=OFF
++        -DQT_BUILD_TESTS=OFF -DQT_BUILD_EXAMPLES=OFF
 +        -DFEATURE_dbus=OFF -DFEATURE_vulkan=OFF -DFEATURE_opengl=OFF
++        -DBUILD_qtgraphs=OFF -DBUILD_qtmultimedia=OFF -DBUILD_qtspeech=OFF -DBUILD_qtwebview=OFF
          -DQT_FEATURE_ffmpeg=OFF
        ]
      else
