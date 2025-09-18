@@ -58,9 +58,9 @@ if [[ $BUILDNAME == 'macOS old' ]]; then
        %W[
 -        -DCMAKE_OSX_DEPLOYMENT_TARGET=#{MacOS.version}.0
 +        -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0
-+        -DQT_BUILD_TESTS=OFF -DQT_BUILD_EXAMPLES=OFF
++        -DQT_BUILD_TESTS=OFF -DQT_BUILD_EXAMPLES=OFF -DQT_BUILD_TOOLS=OFF -DQT_BUILD_DOCS=OFF
 +        -DFEATURE_dbus=OFF -DFEATURE_vulkan=OFF -DFEATURE_opengl=OFF
-+        -DBUILD_qtgraphs=OFF -DBUILD_qtmultimedia=OFF -DBUILD_qtspeech=OFF -DBUILD_qtwebview=OFF -DBUILD_qtquick3d=OFF -DBUILD_qtquick3dphysics=OFF -DBUILD_qt3d=OFF -DBUILD_qtcharts=OFF -DBUILD_qtvirtualkeyboard=OFF -DBUILD_qt5compat=OFF -DBUILD_qtactiveqt=OFF -DBUILD_qtcoap=OFF -DBUILD_qtconnectivity=OFF -DBUILD_qtdatavis3d=OFF -DBUILD_qtgrpc=OFF -DBUILD_qthttpserver=OFF -DBUILD_qtlanguageserver=OFF -DBUILD_qtlocation=OFF -DBUILD_qtpositioning=OFF -DBUILD_qtlottie=OFF -DBUILD_qtmqtt=OFF -DBUILD_qtnetworkauth=OFF -DBUILD_qtopcua=OFF -DBUILD_qtremoteobjects=OFF -DBUILD_qtscxml=OFF -DBUILD_qtsensors=OFF -DBUILD_qtserialbus=OFF -DBUILD_qtserialport=OFF -DBUILD_qtdoc=OFF  -DBUILD_qttranslations=OFF -DBUILD_qtwayland=OFF -DBUILD_qtwebchannel=OFF -DBUILD_qtwebsockets=OFF -DBUILD_qtquickeffectmaker=OFF -DBUILD_qtquicktimeline=OFF
++        -DBUILD_qtgraphs=OFF
          -DQT_FEATURE_ffmpeg=OFF
        ]
      else
