@@ -52,7 +52,7 @@ if [[ $BUILDNAME == 'macOS old' ]]; then
  
      # Modify Assistant path as we manually move `*.app` bundles from `bin` to `libexec`.
      # This fixes invocation of Assistant via the Help menu of apps like Designer and
-@@ -238,7 +243,10 @@ class Qt < Formula
+@@ -238,7 +243,9 @@ class Qt < Formula
        cmake_args << "-DQT_FORCE_WARN_APPLE_SDK_AND_XCODE_CHECK=ON" if MacOS.version <= :monterey
  
        %W[
@@ -60,7 +60,6 @@ if [[ $BUILDNAME == 'macOS old' ]]; then
 +        -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0
 +        -DQT_BUILD_TESTS=OFF -DQT_BUILD_EXAMPLES=OFF -DQT_BUILD_TOOLS=OFF -DQT_BUILD_DOCS=OFF
 +        -DFEATURE_dbus=OFF -DFEATURE_vulkan=OFF -DFEATURE_opengl=OFF
-+        -DBUILD_qtgraphs=OFF
          -DQT_FEATURE_ffmpeg=OFF
        ]
      else
