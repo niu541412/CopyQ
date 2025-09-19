@@ -35,7 +35,7 @@ if [[ $BUILDNAME == 'macOS old' ]]; then
     ./uninstall-mono.sh
 
     # patch then build qt@6 locally，besides exclude some modules and features to reduce build time.
-    curl -O https://raw.githubusercontent.com/Homebrew/homebrew-core/refs/heads/master/Formula/q/qt.rb
+    curl -O https://raw.githubusercontent.com/Homebrew/homebrew-core/main/Formula/q/qt.rb
 
     patch qt.rb <<'EOF'
 --- qt.rb
