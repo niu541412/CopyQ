@@ -10,6 +10,8 @@
 #include "common/version.h"
 #include "platform/platformnativeinterface.h"
 
+#include <QProcess>
+
 namespace {
 
 QString copyqUserAgent()
@@ -739,9 +741,14 @@ void Tests::setTabName()
 
 void Tests::abortInputReader()
 {
-    RUN_WITH_INPUT("afterMilliseconds(0, abort); input(); 'DONE'", KEEP_STDIN_OPEN, "");
-    RUN_WITH_INPUT("afterMilliseconds(50, abort); input(); 'DONE'", KEEP_STDIN_OPEN, "");
-    RUN_WITH_INPUT("afterMilliseconds(250, abort); input(); 'DONE'", KEEP_STDIN_OPEN, "");
+    QProcess p;
+    p.start(
+        QCoreApplication::applicationFilePath(),
+        {"afterMilliseconds(250, abort); input(); print('DONE'); 'DONE'"}
+    );
+    QVERIFY2( p.waitForStarted(10000), "Process failed to start" );
+    QVERIFY2( p.waitForFinished(5000), "Process failed to finish" );
+    QCOMPARE( p.readAllStandardOutput(), "" );
 }
 
 void Tests::changeAlwaysOnTop()
@@ -835,14 +842,10 @@ void Tests::networkGetPostAsync()
 
 void Tests::pluginNotInstalled()
 {
-#if QT_VERSION >= QT_VERSION_CHECK(5,10,0)
     RUN_EXPECT_ERROR_WITH_STDERR(
         "plugins.bad_plugin", CommandException,
         "Plugin \"bad_plugin\" is not installed"
     );
-#else
-    SKIP("Not supported in older Qt version");
-#endif
 }
 
 void Tests::startServerAndRunCommand()

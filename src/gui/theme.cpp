@@ -54,11 +54,7 @@ QPalette::ColorRole defaultColorVarToRole(const QString &varName)
     static QHash<QString, QPalette::ColorRole> map = {
         {defaultColorVarBase, QPalette::Base},
         {defaultColorVarText, QPalette::Text},
-#if QT_VERSION >= QT_VERSION_CHECK(5,12,0)
         {defaultColorVarPlaceholderText, QPalette::PlaceholderText},
-#else
-        {defaultColorVarPlaceholderText, QPalette::AlternateBase},
-#endif
         {defaultColorVarAlternateBase, QPalette::AlternateBase},
         {defaultColorVarHighlight, QPalette::Highlight},
         {defaultColorVarHighlightText, QPalette::HighlightedText},
@@ -124,6 +120,8 @@ void addColor(
     } else if ( color.startsWith(QStringLiteral("default_")) ) {
         const QPalette::ColorRole role = defaultColorVarToRole(color);
         toAdd = QPalette().color(role);
+    } else if (QColor col(color); col.isValid()) {
+        toAdd = col;
     } else if (maxRecursion > 0) {
         const QVariant v = values.contains(color)
                 ? values.value(color) : theme.value(color);
@@ -394,8 +392,8 @@ void Theme::resetTheme()
     m_theme["alt_bg"]    = Option(defaultColorVarAlternateBase, "VALUE", ui ? ui->pushButtonColorAltBg : nullptr);
     m_theme["sel_bg"]    = Option(defaultColorVarHighlight, "VALUE", ui ? ui->pushButtonColorSelBg : nullptr);
     m_theme["sel_fg"]    = Option(defaultColorVarHighlightText, "VALUE", ui ? ui->pushButtonColorSelFg : nullptr);
-    m_theme["find_bg"]   = Option("#ff0", "VALUE", ui ? ui->pushButtonColorFoundBg : nullptr);
-    m_theme["find_fg"]   = Option("#000", "VALUE", ui ? ui->pushButtonColorFoundFg : nullptr);
+    m_theme["find_bg"]   = Option("yellow", "VALUE", ui ? ui->pushButtonColorFoundBg : nullptr);
+    m_theme["find_fg"]   = Option("black", "VALUE", ui ? ui->pushButtonColorFoundFg : nullptr);
     m_theme["notes_bg"]  = Option(defaultColorVarToolTipBase, "VALUE", ui ? ui->pushButtonColorNotesBg : nullptr);
     m_theme["notes_fg"]  = Option(defaultColorVarToolTipText, "VALUE", ui ? ui->pushButtonColorNotesFg : nullptr);
     m_theme["notification_bg"]  = Option("#333", "VALUE", ui ? ui->pushButtonColorNotificationBg : nullptr);
