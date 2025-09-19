@@ -40,25 +40,24 @@ if [[ $BUILDNAME == 'macOS old' ]]; then
     patch qt.rb <<'EOF'
 --- qt.rb
 +++ qt.rb
-@@ -161,6 +161,11 @@
+@@ -182,6 +182,10 @@ class Qt < Formula
+     # because on macOS `/tmp` -> `/private/tmp`
      inreplace "qtwebengine/src/3rdparty/gn/src/base/files/file_util_posix.cc",
                "FilePath(full_path)", "FilePath(input)"
- 
 +    inreplace "qtbase/src/corelib/kernel/qcore_mac.mm",
 +              "(current.majorVersion() == 10 && current.minorVersion() >= 16)", 
 +              "((current.majorVersion() == 10 && current.minorVersion() >= 16) || 
 +              (current.majorVersion() == 11) || (current.majorVersion() == 12))"
-+
+ 
      # Modify Assistant path as we manually move `*.app` bundles from `bin` to `libexec`.
      # This fixes invocation of Assistant via the Help menu of apps like Designer and
-     # Linguist as they originally relied on Assistant.app being in `bin`.
-@@ -219,7 +224,10 @@
-       cmake_args << "-DBUILD_qtwebengine=OFF" if MacOS::Xcode.version < "15.3"
+@@ -251,7 +255,10 @@ class Qt < Formula
+       end
  
        %W[
--        -DCMAKE_OSX_DEPLOYMENT_TARGET=#{MacOS.version}.0
+-        -DCMAKE_OSX_DEPLOYMENT_TARGET=#{deploy}
 +        -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0
-+        -DQT_BUILD_TESTS=OFF -DQT_BUILD_EXAMPLES=OFF -DQT_BUILD_TOOLS=OFF -DQT_BUILD_DOCS=OFF
++        -DQT_BUILD_TESTS=OFF -DQT_BUILD_EXAMPLES=OFF -DQT_BUILD_TOOLS=OFF
 +        -DFEATURE_dbus=OFF -DFEATURE_vulkan=OFF -DFEATURE_opengl=OFF
 +        -DBUILD_qtgraphs=OFF -DBUILD_qtmultimedia=OFF -DBUILD_qtspeech=OFF -DBUILD_qtwebview=OFF -DBUILD_qtquick3d=OFF -DBUILD_qtquick3dphysics=OFF -DBUILD_qt3d=OFF -DBUILD_qtcharts=OFF -DBUILD_qtvirtualkeyboard=OFF -DBUILD_qt5compat=OFF -DBUILD_qtactiveqt=OFF -DBUILD_qtcoap=OFF -DBUILD_qtconnectivity=OFF -DBUILD_qtdatavis3d=OFF -DBUILD_qtgrpc=OFF -DBUILD_qthttpserver=OFF -DBUILD_qtlanguageserver=OFF -DBUILD_qtlocation=OFF -DBUILD_qtpositioning=OFF -DBUILD_qtlottie=OFF -DBUILD_qtmqtt=OFF -DBUILD_qtnetworkauth=OFF -DBUILD_qtopcua=OFF -DBUILD_qtremoteobjects=OFF -DBUILD_qtscxml=OFF -DBUILD_qtsensors=OFF -DBUILD_qtserialbus=OFF -DBUILD_qtserialport=OFF -DBUILD_qtdoc=OFF  -DBUILD_qttranslations=OFF -DBUILD_qtwayland=OFF -DBUILD_qtwebchannel=OFF -DBUILD_qtwebsockets=OFF -DBUILD_qtquickeffectmaker=OFF -DBUILD_qtquicktimeline=OFF
          -DQT_FEATURE_ffmpeg=OFF
