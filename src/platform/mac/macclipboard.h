@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#ifndef MACCLIPBOARD_H
-#define MACCLIPBOARD_H
+#pragma once
+
 
 #include "platform/dummy/dummyclipboard.h"
 
@@ -16,7 +16,7 @@ public:
 protected:
     void onChanged(int mode) override;
     const long int *clipboardSequenceNumber(ClipboardMode) const override {
-        return &m_prevChangeCount; 
+        return &m_prevChangeCount;
     }
 
 private:
@@ -24,5 +24,3 @@ private:
 
     long int m_prevChangeCount = 0;
 };
-
-#endif // MACCLIPBOARD_H
