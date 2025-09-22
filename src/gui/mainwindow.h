@@ -430,6 +430,8 @@ signals:
 
     void sendActionData(int actionId, const QByteArray &bytes);
 
+    void clipboardTabChanged();
+
 protected:
     bool eventFilter(QObject *object, QEvent *ev) override;
     void keyPressEvent(QKeyEvent *event) override;
@@ -588,8 +590,6 @@ private:
 
     QAction *addTrayAction(Actions::Id id);
 
-    void updateTabIcon(const QString &newName, const QString &oldName);
-
     template <typename Receiver, typename ReturnType>
     QAction *addItemAction(Actions::Id id, Receiver *receiver, ReturnType (Receiver::* slot)());
 
@@ -639,6 +639,17 @@ private:
     void activateCurrentItemHelper();
     void onItemClicked();
     void onItemDoubleClicked();
+
+    /**
+     * Update tab name in placeholder and configuration.
+     * Return true on success, false if setting tab name in placeholder failed
+     * (most likely failure to move the tab data).
+     */
+    bool updateTabName(
+        ClipboardBrowserPlaceholder *placeholder,
+        const QString &newName,
+        AppConfig *appConfig,
+        Tabs *tabs);
 
     ConfigurationManager *cm;
     Ui::MainWindow *ui;

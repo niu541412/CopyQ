@@ -193,13 +193,16 @@ void Tests::tabRemove()
 
 void Tests::tabIcon()
 {
-    const QString tab = testTab(1);
+    const QString tab0 = testTab(1);
+    const QString tab = testTab(2);
     const QString icon = ":/images/icon";
 
     RUN("tab" << tab << "add" << "", "");
     RUN("tabIcon" << tab, "\n");
+    RUN("tabicon" << tab0, "\n");
     RUN("tabicon" << tab << icon, "");
     RUN("tabIcon" << tab, icon + "\n");
+    RUN("tabicon" << tab0, "\n");
     RUN("tabIcon" << tab << "", "");
     RUN("tabicon" << tab, "\n");
 }
@@ -543,14 +546,14 @@ void Tests::pasteFromMainWindow()
     runMultiple(
         [&]() { RUN(WITH_TIMEOUT "dialog('text')", "TEST\n"); },
         [&]() {
-            RUN("keys" << "focus::QLineEdit in :QDialog", "");
+            RUN("keys" << "focus::QLineEdit<.*:QDialog", "");
             RUN("show", "");
             RUN("keys" << clipboardBrowserId << "ENTER", "");
 
             WAIT_FOR_CLIPBOARD("TEST");
             waitFor(waitMsPasteClipboard);
 
-            RUN("keys" << "focus::QLineEdit in :QDialog" << "ENTER", "");
+            RUN("keys" << "focus::QLineEdit<.*:QDialog" << "ENTER", "");
         }
     );
 }

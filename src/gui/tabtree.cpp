@@ -285,39 +285,46 @@ QString TabTree::tabName(int tabIndex) const
 
 void TabTree::setTabName(int tabIndex, const QString &tabName)
 {
-    QTreeWidgetItem *item = findTreeItem(tabIndex);
-    Q_ASSERT(item);
+    QTreeWidgetItem *oldItem = findTreeItem(tabIndex);
+    Q_ASSERT(oldItem);
 
-    if (getTabPath(item) == tabName)
+    if (getTabPath(oldItem) == tabName)
         return;
 
-    const QString itemCount = item->data(0, DataItemCount).toString();
+    const QString itemCount = oldItem->data(0, DataItemCount).toString();
     insertTab(tabIndex, tabName);
-    if (item == currentItem())
+    if (oldItem == currentItem())
         setCurrentTab(tabIndex);
 
     // Remove old item if it's an empty group.
-    m_tabs.removeOne(item);
-    if ( isEmptyTabGroup(item) )
-        deleteItem(item);
+    m_tabs.removeOne(oldItem);
+    if ( isEmptyTabGroup(oldItem) ) {
+        deleteItem(oldItem);
+    } else {
+        // Remove item counter from non-tab group.
+        setTabItemCount(oldItem, QString());
+    }
 
-    item = findTreeItem(tabIndex);
-    Q_ASSERT(item);
-    Q_ASSERT(getTabPath(item) == tabName);
+    QTreeWidgetItem *newItem = findTreeItem(tabIndex);
+    Q_ASSERT(newItem);
+    Q_ASSERT(getTabPath(newItem) == tabName);
 
     if ( !itemCount.isEmpty() )
-        setTabItemCount(tabName, itemCount);
+        setTabItemCount(newItem, itemCount);
 
-    updateItemSize(item);
+    updateItemSize(newItem);
     updateSize();
 }
 
 void TabTree::setTabItemCount(const QString &tabName, const QString &itemCount)
 {
     QTreeWidgetItem *item = findTreeItem(tabName);
-    if (!item)
-        return;
+    if (item)
+        setTabItemCount(item, itemCount);
+}
 
+void TabTree::setTabItemCount(QTreeWidgetItem *item, const QString &itemCount)
+{
     item->setData(0, DataItemCount, itemCount);
 
     ItemLabel *label = itemLabel(item);
@@ -566,6 +573,13 @@ void TabTree::dropEvent(QDropEvent *event)
     } else if ( itemAt(event->pos()) ) {
         const QString oldPrefix = getTabPath(current);
 
+        QSet<QTreeWidgetItem*> collapsedItems;
+        for ( QTreeWidgetItemIterator it(current); *it; ++it ) {
+            auto item = *it;
+            if ( !item->isExpanded() )
+                collapsedItems.insert(item);
+        }
+
         blockSignals(true);
         QTreeWidget::dropEvent(event);
         setCurrentItem(current);
@@ -591,11 +605,13 @@ void TabTree::dropEvent(QDropEvent *event)
 
         QList<QTreeWidgetItem*> newTabs;
         QList<int> indexes;
+        QList<QPersistentModelIndex> toDelete;
         for ( QTreeWidgetItemIterator it(topLevelItem(0)); *it; ++it ) {
             auto item = *it;
+            item->setExpanded( !collapsedItems.contains(item) );
             // Remove empty groups.
             if ( isEmptyTabGroup(item) ) {
-                deleteItem(item);
+                toDelete.append(indexFromItem(item));
             } else {
                 const int oldIndex = getTabIndex(item);
                 if (oldIndex != -1) {
@@ -605,10 +621,19 @@ void TabTree::dropEvent(QDropEvent *event)
             }
         }
 
-        m_tabs = std::move(newTabs);
-        emit tabsMoved(oldPrefix, newPrefix, indexes);
+        for (const auto &index : toDelete) {
+            if (!index.isValid())
+                continue;
+
+            QTreeWidgetItem *item = itemFromIndex(index);
+            if (item)
+                deleteItem(item);
+        }
 
         updateSize();
+
+        m_tabs = std::move(newTabs);
+        emit tabsMoved(oldPrefix, newPrefix, indexes);
     } else {
         event->ignore();
     }
