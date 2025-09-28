@@ -330,6 +330,8 @@ private slots:
 
     void expireTabs();
 
+    void dragNDropItemOrder();
+    void dragNDropItemToTabTree();
     void dragNDropTreeTab();
     void dragNDropTreeTabNested();
 
