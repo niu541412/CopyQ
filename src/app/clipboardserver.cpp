@@ -8,7 +8,6 @@
 #include "common/client_server.h"
 #include "common/commandstatus.h"
 #include "common/config.h"
-#include "common/display.h"
 #include "common/log.h"
 #include "common/mimetypes.h"
 #include "common/shortcuts.h"
@@ -39,6 +38,7 @@
 #include <QSessionManager>
 #include <QStyleFactory>
 #include <QTextEdit>
+#include <QWindow>
 
 #ifdef COPYQ_GLOBAL_SHORTCUTS
 #include "../qxt/qxtglobalshortcut.h"
@@ -73,18 +73,28 @@ void setTabWidth(QTextEdit *editor, int spaces)
     editor->setTabStopDistance(width);
 }
 
-void cleanUpLogFilesAfterMs(int ms)
+void cleanUpLogFilesTimer()
 {
-    QTimer::singleShot(ms, qApp, [](){
-        bool okSize;
-        bool okFiles;
-        const int maxLogSize = qgetenv("COPYQ_MAX_LOG_SIZE").toInt(&okSize);
-        const int maxFiles = qgetenv("COPYQ_MAX_LOG_FILES").toInt(&okFiles);
-        dropLogsToFileCountAndSize(
-            okFiles ? maxFiles : 50,
-            okSize ? maxLogSize : 10 * 1024 * 1024
-        );
-    });
+    bool ok;
+    int maxLogSize = qgetenv("COPYQ_MAX_LOG_SIZE").toInt(&ok);
+    if (!ok)
+        maxLogSize = 10 * 1024 * 1024;
+
+    int maxFiles = qgetenv("COPYQ_MAX_LOG_FILES").toInt(&ok);
+    if (!ok)
+        maxFiles = 100;
+
+    constexpr int startIntervalMs = 30 * 1000;
+    constexpr int cleanUpIntervalMs = 1 * 60 * 60 * 1000;
+
+    auto timer = new QTimer(qApp);
+    timer->setSingleShot(false);
+    timer->setInterval(cleanUpIntervalMs);
+    timer->start();
+
+    auto callback = [=](){ dropLogsToFileCountAndSize(maxFiles, maxLogSize); };
+    QTimer::singleShot(startIntervalMs, qApp, callback);
+    QObject::connect(timer, &QTimer::timeout, qApp, callback);
 }
 
 } // namespace
@@ -96,8 +106,7 @@ ClipboardServer::ClipboardServer(QApplication *app, const QString &sessionName)
     , m_shortcutActions()
     , m_ignoreKeysTimer()
 {
-    setLogLabel("Server");
-    cleanUpLogFilesAfterMs(30000);
+    cleanUpLogFilesTimer();
 
     m_server = new Server(clipboardServerName(), this);
 
@@ -480,6 +489,22 @@ void ClipboardServer::cleanDataFiles()
     ::cleanDataFiles( m_wnd->tabs() );
 }
 
+void ClipboardServer::setPreventScreenCapture(bool prevent)
+{
+    auto platform = platformNativeInterface();
+    const bool canPreventScreenCapture = platform->canPreventScreenCapture();
+    const bool reallyPrevent = canPreventScreenCapture && prevent;
+    if (m_prevertScreenCapture == reallyPrevent)
+        return;
+
+    m_prevertScreenCapture = reallyPrevent;
+    for (QWindow *window : qApp->allWindows()) {
+        qDebug() << "Prevent screen capture for window" << window
+                 << "to" << m_prevertScreenCapture;
+        platform->setPreventScreenCapture(window->winId(), m_prevertScreenCapture);
+    }
+}
+
 void ClipboardServer::onClientNewConnection(const ClientSocketPtr &client)
 {
     auto proxy = new ScriptableProxy(m_wnd);
@@ -656,6 +681,12 @@ bool ClipboardServer::eventFilter(QObject *object, QEvent *ev)
         if ( !m_updateThemeTimer.isActive() )
             COPYQ_LOG("Got theme change event");
         m_updateThemeTimer.start();
+    } else if (m_prevertScreenCapture && type == QEvent::Expose) {
+        auto window = qobject_cast<QWindow*>(object);
+        if (window) {
+            platformNativeInterface()->setPreventScreenCapture(
+                window->winId(), m_prevertScreenCapture);
+        }
     }
 
     return false;
@@ -710,6 +741,8 @@ void ClipboardServer::loadSettings(AppConfig *appConfig)
 
     m_textTabSize = appConfig->option<Config::text_tab_width>();
     m_saveOnDeactivate = appConfig->option<Config::save_on_app_deactivated>();
+
+    setPreventScreenCapture(appConfig->option<Config::prevent_screen_cature>());
 
     if (m_monitor) {
         stopMonitoring();
