@@ -18,6 +18,7 @@ rm -rf \
     /usr/local/bin/idle3* \
     /usr/local/bin/pydoc3* \
     /usr/local/bin/python3* \
+    /usr/local/bin/pip3* \
     /usr/local/bin/python3-config*
 
 brew uninstall cmake
@@ -27,7 +28,12 @@ brew uninstall cmake
 
 brew tap copyq/kde utils/github/homebrew/
 
-brew install qt@6
+if [[ $BUILDNAME == 'macOS old' ]]; then
+	HOMEBREW_DEVELOPER=1 brew install ./qt--*.bottle.tar.gz
+else
+    brew install qt@6
+fi
+
 brew install --verbose \
     copyq/kde/kf6-knotifications \
     copyq/kde/kf6-kstatusnotifieritem
