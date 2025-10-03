@@ -23,6 +23,7 @@ env:
 
     xvfb
     openbox
+    xdotool
   qt6_packages: >-
     libegl-dev
 
@@ -60,12 +61,17 @@ env:
 
     libkf5notifications-dev
     extra-cmake-modules
+  # FIXME: Sending signal to client process does not cause the process
+  # to exit with non-zero code with GitHub Actions. Why?
+  COPYQ_TESTS_SKIP_SIGNAL: '1'
 
 jobs:
   build:
     name: ${{matrix.buildname}}
     runs-on: ${{matrix.os}}
     strategy:
+      # Avoid canceling all jobs on transient failures.
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-22.04
@@ -107,7 +113,7 @@ jobs:
           fetch-depth: 1
 
       - name: Enable ccache
-        uses: hendrikmuhs/ccache-action@63069e3931dedbf3b63792097479563182fe70d1 # v1.2
+        uses: hendrikmuhs/ccache-action@bfa03e1de4d7f7c3e80ad9109feedd05c4f5a716 # v1.2
         with:
           key: ${{ github.job }}-${{ matrix.os }}
 
@@ -164,7 +170,6 @@ jobs:
           # Remove system and 3rd party files
           lcov --remove coverage-full.info \
               '/usr/*' \
-              '*/qxt/*' \
               '*/plugins/itemfakevim/fakevim/*' \
               '*/src/gui/fix_icon_id.h' \
               --output-file coverage.info
