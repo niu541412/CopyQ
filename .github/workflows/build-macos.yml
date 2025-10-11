@@ -18,7 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
+          - os: macos-15-intel
             buildname: macOS old
             bundle_suffix: '-macos-x86_64_macOS12'
             cmake_preset: macOS-10
@@ -49,14 +49,14 @@ jobs:
         run: |
           export PATH="/usr/lib/ccache:/usr/local/opt/ccache/libexec:$PATH"
 
-      - name: Download qt bottle
+      - name: Download qtbase bottle
         if: matrix.buildname == 'macOS old'
         uses: dsaltares/fetch-gh-release-asset@master
         with:
           repo: ${{ github.repository_owner }}/brew_qt_macos12
           version: tags/nightly
           regex: true
-          file: "qt--.*\\.bottle\\.tar\\.gz"
+          file: "qtbase--.*\\.bottle\\.tar\\.gz"
           target: "./"
           token: ${{ secrets.GITHUB_TOKEN }}
 
