@@ -167,16 +167,35 @@ void Tests::searchRowNumber()
 {
     RUN("add" << "d2" << "c" << "b2" << "a", "");
 
-    RUN("keys" << ":2" << "TAB", "");
+    RUN("keys" << ":2", "");
+    RUN("keys" << filterEditId << "TAB" << clipboardBrowserId, "");
     RUN("testSelected", QString(clipboardTabName) + " 1 1\n");
     RUN("keys" << "CTRL+A", "");
     RUN("testSelected", QString(clipboardTabName) + " 1 1 3\n");
 
+    RUN("keys" << ":0", "");
+    RUN("keys" << filterEditId << "TAB" << clipboardBrowserId << "CTRL+A", "");
+    RUN("testSelected", QString(clipboardTabName) + " _\n");
+
     RUN("config" << "row_index_from_one" << "false", "false\n");
-    RUN("keys" << ":2" << "TAB", "");
+    RUN("keys" << ":2", "");
+    RUN("keys" << filterEditId << "TAB" << clipboardBrowserId, "");
     RUN("testSelected", QString(clipboardTabName) + " 2 2\n");
     RUN("keys" << "CTRL+A", "");
     RUN("testSelected", QString(clipboardTabName) + " 2 1 2 3\n");
+
+    RUN("keys" << ":0", "");
+    RUN("keys" << filterEditId << "TAB" << clipboardBrowserId << "CTRL+A", "");
+    RUN("testSelected", QString(clipboardTabName) + " 0 0\n");
+
+    RUN("keys" << ":5", "");
+    RUN("keys" << filterEditId << "TAB" << clipboardBrowserId << "CTRL+A", "");
+    RUN("testSelected", QString(clipboardTabName) + " _\n");
+
+    RUN("filter" << "-1", "");
+    RUN("filter", "-1\n");
+    RUN("keys" << clipboardBrowserId << "CTRL+A", "");
+    RUN("testSelected", QString(clipboardTabName) + " _\n");
 }
 
 void Tests::searchAccented()
@@ -184,6 +203,42 @@ void Tests::searchAccented()
     RUN("add" << "a" << "väčšina" << "a", "");
     RUN("filter" << "vacsina", "");
     WAIT_ON_OUTPUT("testSelected", QByteArray(clipboardTabName) + " 1 1\n");
+}
+
+void Tests::searchManyItems()
+{
+    RUN("config"
+        << "maxitems" << "100000"
+        << "row_index_from_one" << "false",
+        "maxitems=100000\n"
+        "row_index_from_one=false\n"
+    );
+    RUN("add.apply(this, [...Array(100000).keys()].reverse())", "");
+
+    RUN("filter" << "90001", "");
+    RUN("testSelected", QString(clipboardTabName) + " 90001 90001\n");
+
+    RUN("filter" << "9 8 7 6 5", "");
+    WAIT_ON_OUTPUT("testSelected", QString(clipboardTabName) + " 56789 56789\n");
+
+    RUN("config" << "filter_regular_expression" << "true", "true\n");
+    RUN("filter" << ".*99999", "");
+    WAIT_ON_OUTPUT("testSelected", QString(clipboardTabName) + " 99999 99999\n");
+
+    RUN("keys" << ":9" << ":0002" << filterEditId, "");
+    RUN("filter", "90002\n");
+    RUN("keys" << filterEditId << "TAB" << clipboardBrowserId, "");
+    RUN("testSelected", QString(clipboardTabName) + " 90002 90002\n");
+
+    RUN("keys" << ":9" << ":999" << filterEditId, "");
+    RUN("keys" << filterEditId << "TAB" << clipboardBrowserId, "");
+    WAIT_ON_OUTPUT(
+        QStringLiteral("keys('%1', 'CTRL+A', '%1'); testSelected()")
+        .arg(clipboardBrowserId),
+        QString(clipboardTabName) + " 9999"
+        " 9999 19999 29999 39999 49999 59999 69999 79999 89999"
+        " 99990 99991 99992 99993 99994 99995 99996 99997 99998 99999\n"
+    );
 }
 
 void Tests::copyItems()

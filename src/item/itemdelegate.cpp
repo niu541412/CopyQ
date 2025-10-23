@@ -197,6 +197,7 @@ void ItemDelegate::setItemSizes(int maxWidth, int idealWidth)
     const int margin = 2 * margins.width() + 2 * m_view->spacing();
     m_maxWidth = maxWidth - margin;
     m_idealWidth = idealWidth - margin;
+    m_fontHeight = m_view->viewport()->fontMetrics().height();
 
     for (int row = 0; static_cast<size_t>(row) < m_items.size(); ++row) {
         if (m_items[row])
@@ -225,10 +226,17 @@ void ItemDelegate::updateItemSize(const QModelIndex &index, QSize itemWidgetSize
         rowNumberSize.height()
     );
 
-    const QSize newSize = QSize(width, height);
-    if (m_items[row].size == newSize)
+    QSize newSize = QSize(width, height);
+    const QSize oldSize = m_items[row].size;
+    if (oldSize == newSize)
         return;
 
+    // Avoid small height changes to make the item positions more stable
+    if (oldSize.isValid()) {
+        const int deltaH = newSize.height() - oldSize.height();
+        if ((-m_fontHeight < deltaH && deltaH < 0) || (0 < deltaH && deltaH < m_fontHeight / 3))
+            newSize.setHeight(oldSize.height());
+    }
     m_items[row].size = newSize;
     emit sizeHintChanged(index);
 }

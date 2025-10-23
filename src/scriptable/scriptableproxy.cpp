@@ -829,10 +829,9 @@ public:
             static const auto mousePress = QStringLiteral("PRESS");
             static const auto mouseRelease = QStringLiteral("RELEASE");
             static const auto mouseClick = QStringLiteral("CLICK");
-            static const auto mouseMove = QStringLiteral("MOVE");
             static const auto mouseDrag = QStringLiteral("DRAG");
             static const QStringList validActions = {
-                mousePress, mouseRelease, mouseClick, mouseMove, mouseDrag};
+                mousePress, mouseRelease, mouseClick, mouseDrag};
             if ( !validActions.contains(action) ) {
                 log( QStringLiteral("Failed to match mouse action: %1").arg(keys), LogError );
                 log( QStringLiteral("Valid mouse actions are: %1")
@@ -2178,12 +2177,16 @@ QString ScriptableProxy::testSelected()
     result.reserve( selectedIndexes.size() + 1 );
 
     const QModelIndex currentIndex = browser->currentIndex();
-    result.append(currentIndex.isValid() ? QString::number(currentIndex.row()) : "_");
+    result.append(
+        currentIndex.isValid() && !browser->isIndexHidden(currentIndex)
+        ? QString::number(currentIndex.row()) : "_");
 
     QList<int> selectedRows;
     selectedRows.reserve( selectedIndexes.size() );
-    for (const auto &index : selectedIndexes)
-        selectedRows.append(index.row());
+    for (const auto &index : selectedIndexes) {
+        if ( !browser->isIndexHidden(index) )
+            selectedRows.append(index.row());
+    }
     std::sort( selectedRows.begin(), selectedRows.end() );
 
     for (int row : selectedRows)
