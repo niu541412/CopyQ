@@ -1482,9 +1482,8 @@ QJSValue Scriptable::info()
 {
     m_skipArguments = 1;
 
-    const QString logFile =
-        QFileInfo(logFileName()).absoluteDir().filePath("copyq.log");
-
+    const QString logFile = QStringLiteral("%1-*.log*")
+        .arg(logFileName().section('-', 0, -3));
     using InfoMap = QMap<QString, QString>;
     InfoMap info;
     info.insert("config", QSettings().fileName());
@@ -1724,74 +1723,11 @@ void Scriptable::fail()
     abortEvaluation(Abort::CurrentEvaluation);
 }
 
-#ifdef HAS_TESTS
-QJSValue Scriptable::keys()
-{
-    m_skipArguments = -1;
-
-    bool ok;
-
-    // Wait interval after shortcut pressed or text typed.
-    const auto waitValue = qgetenv("COPYQ_TESTS_KEYS_WAIT");
-    int wait = waitValue.toInt(&ok);
-    if (!ok)
-        wait = 0;
-
-    // Delay while typing.
-    const auto delayValue = qgetenv("COPYQ_TESTS_KEY_DELAY");
-    int delay = delayValue.toInt(&ok);
-    if (!ok)
-        delay = 0;
-
-    QString expectedWidgetName;
-
-    const auto focusPrefix = QLatin1String("focus:");
-    for (int i = 0; i < argumentCount(); ++i) {
-        const QString keys = toString(argument(i));
-
-        if (keys.startsWith(focusPrefix)) {
-            expectedWidgetName = keys.mid(focusPrefix.size());
-            m_proxy->sendKeys(expectedWidgetName, QString(), 0);
-        } else {
-            waitFor(wait);
-            m_proxy->sendKeys(expectedWidgetName, keys, delay);
-        }
-
-        // Make sure all keys are send (shortcuts are postponed because they can be blocked by modal windows).
-        for (;;) {
-            if ( m_proxy->sendKeysSucceeded() )
-                break;
-
-            if ( m_proxy->sendKeysFailed() )
-                return throwError("Failed to send key presses");
-
-            QCoreApplication::processEvents();
-            if (!canContinue())
-                return throwError("Disconnected");
-        }
-    }
-
-    return QJSValue();
-}
-
 QJSValue Scriptable::testSelected()
 {
     m_skipArguments = 0;
     return m_proxy->testSelected();
 }
-#else // HAS_TESTS
-QJSValue Scriptable::keys()
-{
-    m_skipArguments = -1;
-    return QJSValue();
-}
-
-QJSValue Scriptable::testSelected()
-{
-    m_skipArguments = 0;
-    return QJSValue();
-}
-#endif // HAS_TESTS
 
 void Scriptable::serverLog()
 {
@@ -2275,10 +2211,9 @@ QVariant Scriptable::call(const QString &method, const QVariantList &arguments)
     if ( hasUncaughtException() )
         return QVariant();
 
-    m_skipArguments = 2;
-
     auto fn = m_engine->globalObject().property(method);
     const auto result = call(method, &fn, arguments);
+    m_skipArguments = -1;
     if ( result.isUndefined() || result.isNull() )
         return QVariant();
 
@@ -2760,6 +2695,11 @@ QByteArray Scriptable::serializeScriptValue(const QJSValue &value)
     return ::serializeScriptValue(value, this);
 }
 
+QJSValue Scriptable::callPlugin()
+{
+    return toScriptValue( m_proxy->callPlugin(argumentsAsVariants()), m_engine );
+}
+
 void Scriptable::onMonitorClipboardChanged(const QVariantMap &data)
 {
     COPYQ_LOG("onClipboardChanged");
@@ -2955,7 +2895,11 @@ void Scriptable::showExceptionMessage(const QString &message)
         ? tr("Exception")
         : tr("Exception in %1").arg( quoteString(m_actionName) );
 
+#if QT_VERSION >= QT_VERSION_CHECK(6,10,0)
+    QtPrivate::QHashCombine hash(0);
+#else
     QtPrivate::QHashCombine hash;
+#endif
     MessageData messageData;
     const auto id = hash(hash(0, title), message);
     messageData.notificationId = QString::number(id);
@@ -3452,8 +3396,8 @@ void Scriptable::print(const QByteArray &message)
         m_action->appendOutput(message);
     } else {
         QFile f;
-        f.open(stdout, QIODevice::WriteOnly);
-        f.write(message);
+        if ( f.open(stdout, QIODevice::WriteOnly) )
+            f.write(message);
     }
 }
 
@@ -3463,10 +3407,11 @@ void Scriptable::printError(const QByteArray &message)
         m_action->appendErrorOutput(message);
     } else {
         QFile f;
-        f.open(stderr, QIODevice::WriteOnly);
-        f.write(message);
-        if ( !message.endsWith('\n') )
-            f.write("\n");
+        if ( f.open(stderr, QIODevice::WriteOnly) ) {
+            f.write(message);
+            if ( !message.endsWith('\n') )
+                f.write("\n");
+        }
     }
 }
 
@@ -3602,8 +3547,8 @@ QJSValue Scriptable::readInput()
     protected:
         void run() override {
             QFile in;
-            in.open(stdin, QIODevice::ReadOnly);
-            input = in.readAll();
+            if ( in.open(stdin, QIODevice::ReadOnly) )
+                input = in.readAll();
         }
     };
 

@@ -20,24 +20,17 @@
 #include <QProcess>
 #include <QSettings>
 
-#ifdef HAS_TESTS
-#  include "tests/tests.h"
-#endif // HAS_TESTS
-
 #include <exception>
 
 Q_DECLARE_METATYPE(QByteArray*)
 
 namespace {
 
-const QString defaultSessionName = QStringLiteral("copyq");
-
 enum class AppType {
     Version,
     Help,
     Info,
     Logs,
-    Tests,
     Server,
     StartServerInBackground,
     Client
@@ -72,15 +65,12 @@ int evaluate(
     const auto output = scriptable.serializeScriptValue(result);
     if ( !output.isEmpty() ) {
         QFile f;
-        if (hasUncaughtException)
-            f.open(stderr, QIODevice::WriteOnly);
-        else
-            f.open(stdout, QIODevice::WriteOnly);
-
-        f.write(output);
-        if ( !output.endsWith("\n") )
-            f.write("\n");
-        f.close();
+        if ( f.open(hasUncaughtException ? stderr : stdout, QIODevice::WriteOnly) ) {
+            f.write(output);
+            if ( !output.endsWith("\n") )
+                f.write("\n");
+            f.close();
+        }
     }
 
     const int exitCode = hasUncaughtException ? CommandException : 0;
@@ -186,14 +176,6 @@ bool needsStartServer(const QString &arg)
     return arg == QLatin1String("--start-server");
 }
 
-#ifdef HAS_TESTS
-bool needsTests(const QString &arg)
-{
-    return arg == QLatin1String("--tests") ||
-           arg == QLatin1String("tests");
-}
-#endif
-
 QString takeSessionName(QStringList &arguments)
 {
     if (arguments.size() > 0) {
@@ -222,11 +204,6 @@ AppArguments parseArguments(int argc, char **argv)
 {
     QStringList arguments =
         platformNativeInterface()->getCommandLineArguments(argc, argv);
-
-#ifdef HAS_TESTS
-    if ( !arguments.isEmpty() && needsTests(arguments[0]) )
-        return {AppType::Tests, QString(""), {}};
-#endif
 
     const QString sessionName = takeSessionName(arguments);
 
@@ -297,15 +274,9 @@ QByteArray logLabelForType(AppType appType, const QStringList &arguments)
     }
 }
 
-void setSessionName(const QString &sessionName)
-{
-    QCoreApplication::setOrganizationName(sessionName);
-    QCoreApplication::setApplicationName(sessionName);
-}
-
 int startApplication(int argc, char **argv)
 {
-    setSessionName(defaultSessionName);
+    setSessionName(QString());
 
     const AppArguments args = parseArguments(argc, argv);
 
@@ -323,13 +294,8 @@ int startApplication(int argc, char **argv)
         return 2;
     }
 
-    if ( args.sessionName.isEmpty() ) {
-        setSessionName(defaultSessionName);
-    } else {
-        const QString session = QStringLiteral("%1-%2")
-            .arg(defaultSessionName, args.sessionName);
-        setSessionName(session);
-    }
+    if ( !args.sessionName.isEmpty() )
+        setSessionName(args.sessionName);
 
     switch (args.appType) {
     // If server hasn't been run yet and no argument were specified
@@ -359,11 +325,6 @@ int startApplication(int argc, char **argv)
 
     case AppType::Logs:
         return evaluate( QStringLiteral("logs"), args.arguments, argc, argv, args.sessionName );
-
-#ifdef HAS_TESTS
-    case AppType::Tests:
-        return runTests(argc - 1, argv + 1);
-#endif
     }
     return -1;
 }

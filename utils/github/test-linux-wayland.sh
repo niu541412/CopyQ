@@ -4,6 +4,8 @@ set -xeuo pipefail
 
 # Run only specific tests that are expected to work on Wayland.
 default_wayland_tests=(
+    configPath
+    readLog
     commandShowHide
     commandCopy
     commandClipboard
@@ -40,7 +42,7 @@ if [[ $# == 0 ]]; then
     script_root="$(dirname "$(readlink -f "$0")")"
     "$script_root/test-signals.sh"
 
-    ./copyq tests "${default_wayland_tests[@]}"
+    ./copyq-tests "${default_wayland_tests[@]}"
 else
-    ./copyq tests "$@"
+    ./copyq-tests "$@"
 fi

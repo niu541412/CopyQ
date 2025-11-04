@@ -4,24 +4,25 @@
 #include "test_utils.h"
 #include "tests_common.h"
 
-#include "common/action.h"
-#include "common/appconfig.h"
+#include "itemencryptedtests.h"
+#include "itemfakevimtests.h"
+#include "itemimagetests.h"
+#include "itempinnedtests.h"
+#include "itemsynctests.h"
+#include "itemtagstests.h"
+
+#include "app/app.h"
 #include "common/client_server.h"
-#include "common/common.h"
 #include "common/config.h"
 #include "common/log.h"
+#include "common/process.h"
 #include "common/settings.h"
 #include "common/shortcuts.h"
 #include "common/sleeptimer.h"
 #include "common/textdata.h"
-#include "item/itemfactory.h"
-#include "item/itemwidget.h"
-#include "item/serialize.h"
-#include "gui/tabicons.h"
 #include "platform/platformclipboard.h"
 #include "platform/platformnativeinterface.h"
 
-#include <QClipboard>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
@@ -31,6 +32,7 @@
 #include <QMap>
 #include <QProcess>
 #include <QRegularExpression>
+#include <QStandardPaths>
 #include <QTest>
 #include <QTimer>
 
@@ -69,12 +71,28 @@ QByteArray decorateOutput(const QByteArray &label, const QByteArray &stderrOutpu
     return output;
 }
 
+QStringList pluginPaths()
+{
+    QDir dir(QCoreApplication::applicationDirPath() + "/src");
+    const QString pattern = QStringLiteral("*itemtests.*");
+    QStringList files;
+    for (const auto &fileName : dir.entryList({pattern}))
+        files.append( dir.absoluteFilePath(fileName) );
+    if (files.isEmpty()) {
+        qCCritical(testCategory) << "Failed to find the test plugin"
+            << pattern << "in" << dir.absolutePath();
+    }
+    return files;
+}
+
 class TestInterfaceImpl final : public TestInterface {
 public:
     TestInterfaceImpl()
         : m_server(nullptr)
         , m_env(QProcessEnvironment::systemEnvironment())
     {
+        if ( qEnvironmentVariableIsEmpty("COPYQ_PLUGINS") )
+            m_env.insert("COPYQ_PLUGINS", pluginPaths().join(';'));
         m_env.insert("COPYQ_LOG_LEVEL", "DEBUG");
         m_env.insert("COPYQ_SESSION_COLOR", defaultSessionColor);
         m_env.insert("COPYQ_CLIPBOARD_COPY_TIMEOUT_MS", "2000");
@@ -100,7 +118,7 @@ public:
         m_server.reset(new QProcess);
         if ( !startTestProcess(m_server.get(), QStringList(), QIODevice::NotOpen) ) {
             return QString::fromLatin1("Failed to launch \"%1\": %2")
-                .arg(QCoreApplication::applicationFilePath())
+                .arg(executable())
                 .arg(m_server->errorString())
                 .toUtf8();
         }
@@ -155,6 +173,16 @@ public:
     bool isServerRunning() override
     {
         return m_server != nullptr && m_server->state() == QProcess::Running;
+    }
+
+    QString executable() override
+    {
+        const QByteArray executable = qgetenv("COPYQ_TESTS_EXECUTABLE");
+        if ( !executable.isEmpty() )
+            return QString::fromUtf8(executable);
+
+        QDir dir(QCoreApplication::applicationDirPath());
+        return dir.absoluteFilePath("copyq");
     }
 
     int run(const QStringList &arguments, QByteArray *stdoutData = nullptr,
@@ -289,7 +317,16 @@ public:
 
     QByteArray getClipboard(const QString &mime = QString("text/plain"), ClipboardMode mode = ClipboardMode::Clipboard)
     {
-        return clipboard()->data(mode, QStringList(mime)).value(mime).toByteArray();
+        const QString command =
+            mode == ClipboardMode::Clipboard
+            ? QStringLiteral("clipboard")
+            : QStringLiteral("selection");
+        QByteArray stdoutActual;
+        QByteArray stderrActual;
+        const int exitCode = run(Args() << command << mime, &stdoutActual, &stderrActual);
+        if ( !testStderr(stderrActual) || exitCode != 0 )
+            return "Failed to get clipboard: " + printClienAndServerStderr(stderrActual, exitCode);
+        return stdoutActual;
     }
 
     QByteArray setClipboard(const QVariantMap &data, ClipboardMode mode) override
@@ -325,8 +362,8 @@ public:
 
     QByteArray verifyClipboard(const QByteArray &data, const QString &mime, bool exact = true) override
     {
-        // Due to image conversions in clipboard check only png.
-        if ( mime.startsWith(QStringLiteral("image/")) && mime != QStringLiteral("image/png") )
+        // Due to image conversions in clipboard check only if PNG header is present.
+        if ( exact && mime.startsWith(QStringLiteral("image/")) )
             return verifyClipboard("PNG", QStringLiteral("image/png"), false);
 
         PerformanceTimer perf;
@@ -414,18 +451,23 @@ public:
             RETURN_ON_ERROR( stopServer(), "Failed to stop server" );
 
         // Remove all configuration files and tab data.
-        const auto settingsPath = settingsDirectoryPath();
-        Q_ASSERT( !settingsPath.isEmpty() );
-        QDir settingsDir(settingsPath);
-        const QStringList settingsFileFilters(QStringLiteral("%1*").arg(appName));
-        // Omit using dangerous QDir::removeRecursively().
-        for ( const auto &fileName : settingsDir.entryList(settingsFileFilters) ) {
-            const auto path = settingsDir.absoluteFilePath(fileName);
-            QFile settingsFile(path);
-            if ( settingsFile.exists() && !settingsFile.remove() ) {
-                return QString::fromLatin1("Failed to remove settings file \"%1\": %2")
-                    .arg(settingsPath, settingsFile.errorString())
-                    .toUtf8();
+        const auto settingsPaths = {
+            settingsDirectoryPath(),
+            QString::fromUtf8( qgetenv("COPYQ_SETTINGS_PATH") )
+        };
+        for ( const auto &settingsPath : settingsPaths ) {
+            Q_ASSERT( !settingsPath.isEmpty() );
+            QDir settingsDir(settingsPath);
+            const QStringList settingsFileFilters(QStringLiteral("copyq*"));
+            // Omit using dangerous QDir::removeRecursively().
+            for ( const auto &fileName : settingsDir.entryList(settingsFileFilters, QDir::Files) ) {
+                const auto path = settingsDir.absoluteFilePath(fileName);
+                QFile settingsFile(path);
+                if ( settingsFile.exists() && !settingsFile.remove() ) {
+                    return QString::fromLatin1("Failed to remove settings file \"%1\": %2")
+                        .arg(path, settingsFile.errorString())
+                        .toUtf8();
+                }
             }
         }
 
@@ -436,12 +478,12 @@ public:
 
             settings.beginGroup("Options");
             settings.setValue( QStringLiteral("language"), QStringLiteral("en") );
-            settings.setValue( Config::clipboard_tab::name(), clipboardTabName );
-            settings.setValue( Config::close_on_unfocus::name(), false );
+            settings.setValue( "clipboard_tab", clipboardTabName );
+            settings.setValue( "close_on_unfocus", false );
             // Hide the main window even if there is no tray or minimize support.
-            settings.setValue( Config::hide_main_window::name(), true );
+            settings.setValue( "hide_main_window", true );
             // Exercise limiting rows in Process Manager dialog when testing.
-            settings.setValue( Config::max_process_manager_rows::name(), 4 );
+            settings.setValue( "max_process_manager_rows", 4 );
             settings.endGroup();
 
             if ( !m_settings.isEmpty() ) {
@@ -512,7 +554,7 @@ public:
     {
         m_testId = id;
         m_settings = settings.toMap();
-        m_env.insert("COPYQ_ALLOW_PLUGINS", allowPlugins);
+        m_env.insert("COPYQ_ALLOW_PLUGINS", "itemtests," + allowPlugins);
     }
 
     int runTests(QObject *testObject, int argc = 0, char **argv = nullptr)
@@ -545,12 +587,11 @@ private:
 
     void verifyConfiguration()
     {
-        AppConfig appConfig;
-        QCOMPARE( appConfig.option<Config::close_on_unfocus>(), false );
-        QCOMPARE( appConfig.option<Config::clipboard_tab>(), QString(clipboardTabName) );
-        QCOMPARE( appConfig.option<Config::maxitems>(), Config::maxitems::defaultValue() );
-        QCOMPARE( savedTabs().join(QStringLiteral(", ")), clipboardTabName );
-        QCOMPARE( AppConfig().option<Config::tabs>(), QStringList() );
+        Settings settings;
+        settings.beginGroup("Options");
+        QCOMPARE( settings.value(QStringLiteral("close_on_unfocus")), false );
+        QCOMPARE( settings.value(QStringLiteral("clipboard_tab")), QString(clipboardTabName) );
+        QCOMPARE( settings.value(QStringLiteral("tabs")).toStringList(), QStringList() );
     }
 
     bool startTestProcess(QProcess *p, const QStringList &arguments,
@@ -571,7 +612,7 @@ private:
             p->setProcessEnvironment(env);
         }
 
-        p->start( QCoreApplication::applicationFilePath(), arguments, mode );
+        p->start( executable(), arguments, mode );
         return p->waitForStarted(10000);
     }
 
@@ -645,9 +686,17 @@ bool Tests::hasTab(const QString &tabName)
     return splitLines(out).contains(tabName);
 }
 
-int runTests(int argc, char *argv[])
+int main(int argc, char **argv)
 {
-    qputenv("COPYQ_SESSION_NAME", sessionName.toUtf8());
+    const QString appName = QStringLiteral("copyq.test");
+    QCoreApplication::setOrganizationName(appName);
+    QCoreApplication::setApplicationName(appName);
+    const auto configPath = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    qCInfo(testCategory) << "Using config directory for tests:" << configPath;
+    QDir configDir(configPath);
+    qputenv("COPYQ_SETTINGS_PATH", configPath.toUtf8());
+    qputenv("COPYQ_LOG_FILE", configDir.absoluteFilePath(QStringLiteral("tests.log")).toUtf8());
+    qputenv("COPYQ_ITEM_DATA_PATH", configDir.absoluteFilePath(QStringLiteral("items")).toUtf8());
 
     QRegularExpression onlyPlugins;
     bool runPluginTests = true;
@@ -666,12 +715,10 @@ int runTests(int argc, char *argv[])
         }
     }
 
+    setSessionName(sessionName);
     const auto platform = platformNativeInterface();
     std::unique_ptr<QGuiApplication> app( platform->createTestApplication(argc, argv) );
-    Q_UNUSED(app)
-
-    QCoreApplication::setOrganizationName(appName);
-    QCoreApplication::setApplicationName(appName);
+    initSession(app.get(), sessionName);
 
     // Set higher default tests timeout.
     // The default value is 5 minutes (in Qt 5.15) which is not enough to run
@@ -695,18 +742,22 @@ int runTests(int argc, char *argv[])
     }
 
     if (runPluginTests) {
-        ItemFactory itemFactory;
-        itemFactory.loadPlugins();
-        for ( const auto &loader : itemFactory.loaders() ) {
-            if ( loader->id().contains(onlyPlugins) ) {
-                std::unique_ptr<QObject> pluginTests( loader->tests(test) );
-                if ( pluginTests != nullptr ) {
-                    const auto pluginId = loader->id();
-                    const auto settings = pluginTests->property("CopyQ_test_settings");
-                    test->setupTest(pluginId, pluginId, settings);
-                    runTests(pluginTests.get());
-                }
-            }
+        const QList<QObject*> pluginTests{
+            new ItemEncryptedTests(test),
+            new ItemFakeVimTests(test),
+            new ItemImageTests(test),
+            new ItemPinnedTests(test),
+            new ItemSyncTests(test),
+            new ItemTagsTests(test),
+        };
+        for (const auto pluginTest : pluginTests) {
+            const auto pluginId = pluginTest->property("CopyQ_test_id").toString();
+            if ( !pluginId.contains(onlyPlugins) )
+                continue;
+
+            const auto settings = pluginTest->property("CopyQ_test_settings");
+            test->setupTest(pluginId, pluginId, settings);
+            runTests(pluginTest);
         }
     }
 

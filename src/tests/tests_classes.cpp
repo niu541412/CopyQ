@@ -215,7 +215,7 @@ void Tests::classTemporaryFile()
     QVERIFY( !QFile::exists(QString::fromUtf8(fileName)) );
 
     RUN("TemporaryFile().autoRemove()", "true\n");
-    RUN("TemporaryFile().fileTemplate()", QDir::temp().filePath(QStringLiteral("%1.XXXXXX").arg(appName)) + "\n");
+    RUN("TemporaryFile().fileTemplate()", QDir::temp().filePath(QStringLiteral("copyq-%1.XXXXXX").arg(sessionName)) + "\n");
 }
 
 void Tests::classItemSelection()
@@ -342,9 +342,9 @@ void Tests::classItemSelectionGetCurrent()
     RUN(args << "ItemSelection().current().str()", "ItemSelection(tab=\"" + tab1 + "\", rows=[0])\n");
 
     RUN("setCommands([{name: 'test', inMenu: true, shortcuts: ['Ctrl+F1'], cmd: 'copyq: add(ItemSelection().current().str())'}])", "");
-    RUN("keys" << "CTRL+F1", "");
+    KEYS("CTRL+F1");
     WAIT_ON_OUTPUT(args << "read(0)", "ItemSelection(tab=\"" + tab1 + "\", rows=[0])");
-    RUN("keys" << "END" << "SHIFT+UP" << "CTRL+F1", "");
+    KEYS("END" << "SHIFT+UP" << "CTRL+F1");
     WAIT_ON_OUTPUT(args << "read(0)", "ItemSelection(tab=\"" + tab1 + "\", rows=[3,2])");
 }
 

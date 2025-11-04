@@ -55,7 +55,11 @@ namespace {
 uint monitorCommandStateHash(const QVector<Command> &commands)
 {
     uint seed = 0;
+#if QT_VERSION >= QT_VERSION_CHECK(6,10,0)
+    QtPrivate::QHashCombine hash(seed);
+#else
     QtPrivate::QHashCombine hash;
+#endif
 
     for (const auto &command : commands) {
         if (command.type() == CommandType::Script)
@@ -113,7 +117,7 @@ ClipboardServer::ClipboardServer(QApplication *app, const QString &sessionName)
     , m_shortcutActions()
     , m_ignoreKeysTimer()
 {
-    m_server = new Server(clipboardServerName(), this);
+    m_server = new Server(clipboardServerName(sessionName), this);
 
     if ( m_server->isListening() ) {
         log( QStringLiteral("Starting server: CopyQ %1").arg(versionString) );
@@ -747,7 +751,7 @@ void ClipboardServer::loadSettings(AppConfig *appConfig)
     m_saveOnDeactivate = appConfig->option<Config::save_on_app_deactivated>();
 
     if ( platformNativeInterface()->canPreventScreenCapture() )
-        setPreventScreenCapture(appConfig->option<Config::prevent_screen_cature>());
+        setPreventScreenCapture(appConfig->option<Config::prevent_screen_capture>());
 
     if (m_monitor) {
         stopMonitoring();

@@ -221,18 +221,9 @@ void ConfigurationManager::initLanguages()
 void ConfigurationManager::updateOptionsVisibility()
 {
     auto platform = platformNativeInterface();
-
-    if ( platform->canAutostart() ) {
-        bind<Config::autostart>(m_tabGeneral->checkBoxAutostart);
-    } else {
-        m_tabGeneral->checkBoxAutostart->hide();
-    }
-
-    if ( platform->canPreventScreenCapture() ) {
-        bind<Config::prevent_screen_cature>(m_tabGeneral->checkBoxPreventScreenCapture);
-    } else {
-        m_tabGeneral->checkBoxPreventScreenCapture->hide();
-    }
+    m_tabGeneral->checkBoxAutostart->setVisible( platform->canAutostart() );
+    m_tabGeneral->checkBoxPreventScreenCapture->setVisible(
+        platform->canPreventScreenCapture() );
 }
 
 void ConfigurationManager::setAutostartEnable(AppConfig *appConfig)
@@ -245,7 +236,7 @@ void ConfigurationManager::initOptions()
 {
     /* general options */
     bind<Config::autostart>(m_tabGeneral->checkBoxAutostart);
-    bind<Config::prevent_screen_cature>(m_tabGeneral->checkBoxPreventScreenCapture);
+    bind<Config::prevent_screen_capture>(m_tabGeneral->checkBoxPreventScreenCapture);
     bind<Config::clipboard_tab>(m_tabHistory->comboBoxClipboardTab->lineEdit());
     bind<Config::maxitems>(m_tabHistory->spinBoxItems);
     bind<Config::expire_tab>(m_tabHistory->spinBoxExpireTab);
