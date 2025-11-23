@@ -26,6 +26,7 @@
 #include "item/itemstore.h"
 #include "item/serialize.h"
 #include "scriptable/scriptableproxy.h"
+#include "scriptable/scriptoverrides.h"
 
 #include <QAction>
 #include <QApplication>
@@ -255,7 +256,7 @@ void ClipboardServer::stopMonitoring()
 
 void ClipboardServer::startMonitoring()
 {
-    if (m_monitor || m_ignoreNewConnections || !m_wnd->isMonitoringEnabled())
+    if (m_monitor || m_exitting || m_ignoreNewConnections || !m_wnd->isMonitoringEnabled())
         return;
 
     COPYQ_LOG("Starting monitor");
@@ -313,7 +314,8 @@ void ClipboardServer::onAboutToQuit()
         return;
     m_exitting = true;
 
-    callback(QStringLiteral("onExit"));
+    if (m_wnd->isScriptOverridden(ScriptOverrides::OnExit))
+        callback(QStringLiteral("onExit"));
     waitForCallbackToFinish();
 
     m_ignoreNewConnections = true;

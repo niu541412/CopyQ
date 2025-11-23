@@ -2620,7 +2620,7 @@ void Scriptable::monitorClipboard()
     connect( &monitor, &ClipboardMonitor::saveData,
              m_proxy, [this](const QVariantMap &data) {
                  m_data = data;
-                 eval("saveData()");
+                 eval("if (hasData()) { saveData(); }");
              } );
 
     monitor.startMonitoring();
@@ -2686,6 +2686,8 @@ void Scriptable::collectScriptOverrides()
         overrides.append(ScriptOverrides::OnTabSelected);
     if (isOverridden(globalObject, QStringLiteral("onItemsLoaded")))
         overrides.append(ScriptOverrides::OnItemsLoaded);
+    if (isOverridden(globalObject, QStringLiteral("onExit")))
+        overrides.append(ScriptOverrides::OnExit);
 
     m_proxy->setScriptOverrides(overrides);
 }
