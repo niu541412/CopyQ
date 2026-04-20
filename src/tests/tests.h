@@ -30,16 +30,19 @@ private slots:
     void configPath();
     void readLog();
     void rotateLog();
+    void pluginsDisabled();
     void commandHelp();
     void commandVersion();
     void badCommand();
     void badSessionName();
+    void commandSession();
 
     void commandCatchExceptions();
 
     void commandExit();
     void commandEval();
     void commandEvalThrows();
+    void commandEvalThrowsWithLineNumber();
     void commandEvalSyntaxError();
     void commandEvalArguments();
     void commandEvalEndingWithComment();
@@ -51,6 +54,7 @@ private slots:
     void commandVisible();
     void commandToggle();
     void commandShowHide();
+    void commandShowHideRapid();
     void commandShowAt();
     void commandFocused();
 
@@ -116,6 +120,7 @@ private slots:
     void commandNotification();
     void commandNotificationUrgency();
     void commandNotificationPersistent();
+    void commandPlaySound();
 
     void commandIcon();
     void commandIconTag();
@@ -136,6 +141,10 @@ private slots:
     void commandForceUnload();
 
     void commandServerLogAndLogs();
+
+    void commandStats();
+    void statsQObjectLeak();
+    void statsItemPreview();
 
     void classByteArray();
     void classFile();
@@ -172,6 +181,7 @@ private slots:
     void searchManyItems();
     void copyItems();
     void selectAndCopyOrder();
+    void copyItemsNullCharacter();
 
     void sortAndReverse();
 
@@ -217,6 +227,7 @@ private slots:
     void traySearch();
     void trayPaste();
     void trayShowHideAction();
+    void trayMenuToggleRapid();
 
     void pasteNext();
 
@@ -227,8 +238,7 @@ private slots:
 
     void configAutostart();
 
-    void configPathEnvVariable();
-    void itemDataPathEnvVariable();
+    void envVariablePaths();
 
     void configTabs();
 
@@ -281,9 +291,7 @@ private slots:
 
     void synchronizeInternalCommands();
 
-    void queryKeyboardModifiersCommand();
-    void pointerPositionCommand();
-    void setPointerPositionCommand();
+    void utilityCommands();
 
     void setTabName();
 
@@ -306,16 +314,14 @@ private slots:
     void exitConfirm();
     void exitNoConfirm();
     void exitStopCommands();
+    void terminateActionRequestTerminate();
+    void terminateActionRequestKill();
 
     void abortInputReader();
 
     void changeAlwaysOnTop();
 
-    void networkGet();
-    void networkPost();
-    void networkHeaders();
-    void networkRedirects();
-    void networkGetPostAsync();
+    void networkTests();
 
     void pluginNotInstalled();
 
@@ -325,6 +331,7 @@ private slots:
     void scriptsForPasswords();
 
     void currentClipboardOwner();
+    void singleClipboardProvider();
 
     void saveLargeItem();
 
@@ -341,6 +348,9 @@ private slots:
     void dragNDropItemToTabTree();
     void dragNDropTreeTab();
     void dragNDropTreeTabNested();
+    void dragNDropTreeTabChildCollision();
+    void dragNDropTreeTabPartialRenameFailure();
+    void dragNDropTreeTabKeepsCollapsedState();
 
     void tabEncryption();
     void tabEncryptionPasswordNew();

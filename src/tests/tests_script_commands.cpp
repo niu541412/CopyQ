@@ -111,7 +111,8 @@ void Tests::scriptCommandWithError()
     );
     RUN_EXPECT_ERROR_WITH_STDERR(
         "", CommandError,
-        "\neval:source@<bad_script>\n"
+        "At line 1 in:\n"
+        "source@<bad_script>\n"
         "--- end backtrace ---\n"
     );
 }
@@ -188,7 +189,6 @@ void Tests::scriptOnItemsRemoved()
     const auto tab2 = testTab(2);
     RUN("tab" << tab2 << "add(3,2,1,0)", "");
     RUN("tab" << tab2 << "remove(1,2)", "");
-    waitFor(1000);
     RUN("tab" << tab2 << "separator" << "," << "read(0,1,2,3,4)", "0,1,2,3,");
 
     // Avoid crash if the tab itself is removed while removing items
@@ -208,7 +208,6 @@ void Tests::scriptOnItemsRemoved()
     const auto tab3 = testTab(3);
     RUN("tab" << tab3 << "add(3,2,1,0)", "");
     RUN("tab" << tab3 << "remove(1,2)", "");
-    waitFor(1000);
     RUN("tab" << tab3 << "separator" << "," << "read(0,1,2,3,4)", ",,,,");
 }
 
@@ -308,7 +307,7 @@ void Tests::scriptEventMaxRecursion()
     m_test->ignoreErrors(QRegularExpression("Event handler maximum recursion reached"));
     RUN("add('X'); remove(0)", "");
     WAIT_ON_OUTPUT("separator" << "," << "read(0,1,2,3,4,5,6,7,8,9,10)", "A,A,A,A,A,A,A,A,A,A,");
-    waitFor(200);
+    waitFor(100);
     RUN("separator" << "," << "read(0,1,2,3,4,5,6,7,8,9,10)", "A,A,A,A,A,A,A,A,A,A,");
 }
 

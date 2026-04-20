@@ -2,7 +2,6 @@
 
 #include "action.h"
 
-#include "common/log.h"
 #include "common/mimetypes.h"
 #include "common/process.h"
 #include "common/processsignals.h"
@@ -11,6 +10,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QEventLoop>
+#include <QLoggingCategory>
 #include <QPointer>
 #include <QProcessEnvironment>
 #include <QRegularExpression>
@@ -18,11 +18,17 @@
 
 namespace {
 
+Q_DECLARE_LOGGING_CATEGORY(logCategory)
+Q_LOGGING_CATEGORY(logCategory, "copyq.action")
+
 void startProcess(QProcess *process, const QStringList &args, QIODevice::OpenModeFlag mode)
 {
     QString executable = args.value(0);
 
     // Replace "copyq" command with full application path.
+    // Use applicationFilePath() (resolves to the binary inside the current
+    // FUSE mount for AppImages) so that child processes reuse the parent's
+    // mount instead of creating a new one.
     if (executable == "copyq")
         executable = QCoreApplication::applicationFilePath();
 
@@ -181,16 +187,17 @@ Action::~Action()
 
 QString Action::commandLine() const
 {
-    QString text;
-    for ( const auto &line : m_cmds ) {
-        for ( const auto &args : line ) {
-            if ( !text.isEmpty() )
-                text.append(QChar('|'));
-            text.append(args.join(" "));
+    QStringList groups;
+    for (const auto &line : m_cmds) {
+        QStringList cmds;
+        for (const auto &args : line) {
+            auto cmd = args.join(QLatin1Char(' '));
+            cmd.replace(QLatin1String("copyq eval --"), QLatin1String("copyq:"));
+            cmds.append(cmd);
         }
-        text.append('\n');
+        groups.append(cmds.join(QLatin1String(" | ")));
     }
-    return text.trimmed();
+    return groups.join(QLatin1String("; "));
 }
 
 void Action::setCommand(const QString &command, const QStringList &arguments)
@@ -314,6 +321,19 @@ bool Action::isRunning() const
     return !m_processes.empty() && m_processes.back()->state() != QProcess::NotRunning;
 }
 
+QList<qint64> Action::processIds() const
+{
+    QList<qint64> pids;
+    for (const auto *proc : m_processes) {
+        if (proc->state() != QProcess::NotRunning) {
+            const auto pid = proc->processId();
+            if (pid != 0)
+                pids.append(pid);
+        }
+    }
+    return pids;
+}
+
 void Action::setData(const QVariantMap &data)
 {
     m_data = data;
@@ -413,6 +433,28 @@ void Action::terminate()
     waitForFinished(5000);
     for (auto p : m_processes)
         terminateProcess(p);
+}
+
+void Action::requestTerminate()
+{
+    if (m_processes.empty() || !isRunning())
+        return;
+
+    qCWarning(logCategory) << "Terminating action:" << commandLine();
+    for (auto p : m_processes)
+        p->terminate();
+}
+
+void Action::requestKill()
+{
+    if (m_processes.empty() || !isRunning())
+        return;
+
+    qCWarning(logCategory) << "Killing action:" << commandLine();
+    for (auto p : m_processes) {
+        if (p->state() != QProcess::NotRunning)
+            p->kill();
+    }
 }
 
 void Action::closeSubCommands()

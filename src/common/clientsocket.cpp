@@ -7,6 +7,7 @@
 #include "common/sleeptimer.h"
 
 #include <QDataStream>
+#include <QVariant>
 
 #define SOCKET_LOG(text) \
     COPYQ_LOG_VERBOSE( QString("Socket %1: %2").arg(m_socketId).arg(text) )
@@ -17,6 +18,7 @@ ClientSocketId lastSocketId = 0;
 
 const quint32 protocolMagicNumber = 0x0C090701;
 const quint32 protocolVersion = 1;
+constexpr auto dataStreamVersion = QDataStream::Qt_6_2;
 
 template <typename T>
 int doStreamDataSize(T value)
@@ -24,7 +26,7 @@ int doStreamDataSize(T value)
     QByteArray bytes;
     {
         QDataStream dataStream(&bytes, QIODevice::WriteOnly);
-        dataStream.setVersion(QDataStream::Qt_5_0);
+        dataStream.setVersion(dataStreamVersion);
         dataStream << value;
     }
     return bytes.length();
@@ -42,7 +44,7 @@ int headerDataSize()
     QByteArray bytes;
     {
         QDataStream dataStream(&bytes, QIODevice::WriteOnly);
-        dataStream.setVersion(QDataStream::Qt_5_0);
+        dataStream.setVersion(dataStreamVersion);
         dataStream << protocolMagicNumber << protocolVersion;
     }
     return bytes.length();
@@ -52,7 +54,7 @@ template <typename T>
 bool readValue(T *value, QByteArray *message)
 {
     QDataStream stream(*message);
-    stream.setVersion(QDataStream::Qt_5_0);
+    stream.setVersion(dataStreamVersion);
     stream >> *value;
     message->remove(0, streamDataSize(*value));
     return stream.status() == QDataStream::Ok;
@@ -63,7 +65,7 @@ bool writeMessage(QLocalSocket *socket, const QByteArray &msg)
     COPYQ_LOG_VERBOSE( QString("Write message (%1 bytes).").arg(msg.size()) );
 
     QDataStream out(socket);
-    out.setVersion(QDataStream::Qt_5_0);
+    out.setVersion(dataStreamVersion);
     // length is serialized as a quint32, followed by msg
     const auto length = static_cast<quint32>(msg.length());
     out << protocolMagicNumber << protocolVersion;
@@ -111,20 +113,22 @@ ClientSocket::ClientSocket(const QString &serverName, QObject *parent)
 {
     m_socket->connectToServer(serverName);
 
-    // Try to connect again in case the server just started.
+    // Retry connecting in case the server just started.
+    // Server-spawned subprocesses set COPYQ_WAIT_FOR_SERVER_MS=0 to skip this.
     if ( m_socket->state() == QLocalSocket::UnconnectedState ) {
-        COPYQ_LOG("Waiting for server to start");
-
         bool ok;
-        int waitMs = qEnvironmentVariableIntValue("COPYQ_WAIT_FOR_SERVER_MS", &ok);
-        if (!ok)
-            waitMs = 1000;
-
-        SleepTimer t(waitMs);
-        do {
-            m_socket->connectToServer(serverName);
-        } while ( m_socket->state() == QLocalSocket::UnconnectedState && t.sleep() );
+        const int waitMs = qEnvironmentVariableIntValue("COPYQ_WAIT_FOR_SERVER_MS", &ok);
+        if (!ok || waitMs > 0) {
+            COPYQ_LOG("Waiting for server to start");
+            SleepTimer t(ok ? waitMs : 1000);
+            do {
+                m_socket->connectToServer(serverName);
+            } while ( m_socket->state() == QLocalSocket::UnconnectedState
+                      && !QCoreApplication::instance()->property("CopyQ_quitting").toBool()
+                      && t.sleep() );
+        }
     }
+
 }
 
 ClientSocket::ClientSocket(QLocalSocket *socket, QObject *parent)
@@ -143,7 +147,7 @@ ClientSocket::~ClientSocket()
 
 bool ClientSocket::start()
 {
-    if ( !m_socket || !m_socket->waitForConnected(4000) )
+    if ( !m_socket || m_socket->state() != QLocalSocket::ConnectedState )
     {
         emit connectionFailed(id());
         return false;
@@ -176,13 +180,15 @@ void ClientSocket::sendMessage(const QByteArray &message, int messageCode)
     } else {
         QByteArray msg;
         QDataStream out(&msg, QIODevice::WriteOnly);
-        out.setVersion(QDataStream::Qt_5_0);
+        out.setVersion(dataStreamVersion);
         out << static_cast<qint32>(messageCode);
         out.writeRawData( message.constData(), message.length() );
-        if ( writeMessage(m_socket, msg) )
+        if ( writeMessage(m_socket, msg) ) {
+            m_socket->flush();
             SOCKET_LOG("Message sent to client.");
-        else
+        } else {
             SOCKET_LOG("Failed to send message to client!");
+        }
     }
 }
 
@@ -212,7 +218,7 @@ void ClientSocket::onReadyRead()
 
             {
                 QDataStream stream(m_message);
-                stream.setVersion(QDataStream::Qt_5_0);
+                stream.setVersion(dataStreamVersion);
                 quint32 magicNumber;
                 quint32 version;
                 stream >> magicNumber >> version >> m_messageLength;

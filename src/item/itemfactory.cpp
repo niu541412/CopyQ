@@ -38,7 +38,7 @@ namespace {
 bool findPluginDir(QDir *pluginsDir)
 {
 #ifdef COPYQ_PLUGIN_PREFIX
-    pluginsDir->setPath(COPYQ_PLUGIN_PREFIX);
+    pluginsDir->setPath(adjustedInstallPath(QStringLiteral(COPYQ_PLUGIN_PREFIX)));
     if ( pluginsDir->isReadable() )
         return true;
 #endif
@@ -467,7 +467,7 @@ ItemSaverPtr ItemFactory::loadItems(const QString &tabName, QAbstractItemModel *
     return nullptr;
 }
 
-ItemSaverPtr ItemFactory::initializeTab(const QString &tabName, QAbstractItemModel *model, int maxItems)
+ItemSaverPtr ItemFactory::initializeTab(const QString &tabName, QAbstractItemModel *model, int maxItems) const
 {
     for (const auto &loader : m_loaders) {
         if ( loader->isEnabled() && loader->canSaveItems(tabName) ) {
@@ -545,6 +545,11 @@ bool ItemFactory::loadPlugins()
         else
             log(QStringLiteral("Failed to load plugin: %1").arg(path), LogError);
     }
+
+    const QStringList allowPlugins =
+        qEnvironmentVariable("COPYQ_ALLOW_PLUGINS")
+        .split(QChar(','), Qt::SkipEmptyParts);
+    pluginsDir.setNameFilters(allowPlugins);
 
     for (const auto &fileName : pluginsDir.entryList(QDir::Files)) {
         const QString path = pluginsDir.absoluteFilePath(fileName);
@@ -676,8 +681,17 @@ bool ItemFactory::loadItemFactorySettings(const ItemLoaderPtr &loader, QSettings
 
     settings->endGroup();
 
-    static const QStringList plugins =
-        qEnvironmentVariable("COPYQ_ALLOW_PLUGINS")
-        .split(QChar(','), Qt::SkipEmptyParts);
-    return plugins.isEmpty() ? enabled : plugins.contains(loader->id());
+    return enabled;
+}
+
+QStringList ItemFactory::copyqStats() const
+{
+    QStringList lines;
+    for (const auto &loader : m_loaders) {
+        if (loader == m_dummyLoader)
+            continue;
+        lines.append(QStringLiteral("PLUGIN %1: %2")
+            .arg(loader->id(), loader->isEnabled() ? "enabled" : "disabled"));
+    }
+    return lines;
 }

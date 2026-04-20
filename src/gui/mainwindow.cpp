@@ -292,10 +292,8 @@ Dialog *openDialog(Ts... arguments)
 
 bool isItemActivationShortcut(const QKeySequence &shortcut)
 {
-    return (shortcut.matches(Qt::Key_Return) || shortcut.matches(Qt::Key_Enter))
-            && shortcut[1] == 0
-            && shortcut[2] == 0
-            && shortcut[3] == 0;
+    return shortcut.count() == 1
+            && (shortcut.matches(Qt::Key_Return) || shortcut.matches(Qt::Key_Enter));
 }
 
 QString importExportFileDialogFilter()
@@ -788,9 +786,12 @@ MainWindow::MainWindow(const ClipboardBrowserSharedPtr &sharedData, QWidget *par
     m_showItemPreview = !ui->dockWidgetItemPreview->isHidden();
 
     // Disable the show-preview option when the preview dock is closed.
-    connect( ui->dockWidgetItemPreview, &QDockWidget::visibilityChanged,
-             this, [this]() {
-                if ( ui->dockWidgetItemPreview->isHidden() )
+    // Capture the dock pointer directly: during ~QWidget::hideChildren() the
+    // dock is still alive but the Ui struct (holding the pointer) is already freed.
+    auto *dockPreview = ui->dockWidgetItemPreview;
+    connect( dockPreview, &QDockWidget::visibilityChanged,
+             this, [this, dockPreview]() {
+                if ( dockPreview->isHidden() )
                     setItemPreviewVisible(false);
              } );
 
@@ -873,6 +874,32 @@ MainWindow::MainWindow(const ClipboardBrowserSharedPtr &sharedData, QWidget *par
 bool MainWindow::browseMode() const
 {
     return ui->searchBar->isHidden();
+}
+
+QStringList MainWindow::copyqStats() const
+{
+    int totalTabs = 0;
+    int loadedTabs = 0;
+    for (auto *placeholder : findChildren<ClipboardBrowserPlaceholder*>()) {
+        ++totalTabs;
+        if (placeholder->isDataLoaded())
+            ++loadedTabs;
+    }
+
+    QStringList lines;
+    if (totalTabs > 0) {
+        lines += QStringLiteral("TABS: total=%1, loaded=%2")
+            .arg(totalTabs).arg(loadedTabs);
+    }
+
+    lines += QStringLiteral("COMMANDS: automatic=%1, display=%2, menu=%3, tray_menu=%4, script=%5")
+        .arg(m_automaticCommands.size())
+        .arg(m_displayCommands.size())
+        .arg(m_menuCommands.size())
+        .arg(m_trayMenuCommands.size())
+        .arg(m_scriptCommands.size());
+
+    return lines;
 }
 
 void MainWindow::exit()
@@ -1201,7 +1228,11 @@ void MainWindow::updateItemPreviewTimeout()
                 : nullptr;
 
         ui->scrollAreaItemPreview->setVisible(w != nullptr);
-        ui->scrollAreaItemPreview->setWidget(w);
+        if (w) {
+            ui->scrollAreaItemPreview->setWidget(w);
+        } else if (auto *old = ui->scrollAreaItemPreview->takeWidget()) {
+            old->deleteLater();
+        }
         if (w) {
             ui->dockWidgetItemPreview->setStyleSheet( c->styleSheet() );
             w->show();
@@ -1287,7 +1318,9 @@ void MainWindow::onAboutToQuit()
 
     stopMenuCommandFilters(&m_itemMenuMatchCommands);
     stopMenuCommandFilters(&m_trayMenuMatchCommands);
-    terminateAction(&m_displayActionId);
+    abortAction(m_displayActionId);
+    abortAction(m_provideClipboardActionId);
+    abortAction(m_provideSelectionActionId);
 }
 
 void MainWindow::onItemCommandActionTriggered(CommandAction *commandAction, const QString &triggeredShortcut)
@@ -1884,17 +1917,50 @@ void MainWindow::stopMenuCommandFilters(MainWindow::MenuMatchCommands *menuMatch
     ++menuMatchCommands->currentRun;
     menuMatchCommands->matchCommands.clear();
     menuMatchCommands->actions.clear();
-    terminateAction(&menuMatchCommands->actionId);
+    abortAction(menuMatchCommands->actionId);
 }
 
-void MainWindow::terminateAction(int *actionId)
+bool MainWindow::abortAction(int &actionId, int waitMs, int terminateAfterMs, int killAfterMs)
 {
-    if (*actionId == -1)
-        return;
+    if (actionId == -1)
+        return true;
 
-    const int id = *actionId;
-    *actionId = -1;
-    emit sendActionData(id, "ABORT");
+    const int oldActionId = actionId;
+
+    // Send CommandStop for clean exit.
+    emit stopAction(oldActionId);
+
+    if (Action *action = m_sharedData->actions->findAction(oldActionId)) {
+        if (waitMs > 0)
+            action->waitForFinished(waitMs);
+        if (action->isRunning()) {
+            if (terminateAfterMs >= 0)
+                QTimer::singleShot(terminateAfterMs, action, &Action::requestTerminate);
+            if (killAfterMs >= 0)
+                QTimer::singleShot(terminateAfterMs + killAfterMs, action, &Action::requestKill);
+        }
+    }
+
+    // Re-entrancy guard: if another call for the same tracked action ID
+    // ran during the nested event loop, it already set actionId.
+    if (actionId != oldActionId)
+        return false;
+
+    actionId = -1;
+    return true;
+}
+
+bool MainWindow::registerClipboardProviderAction(int actionId, ClipboardMode mode)
+{
+    int &tracked = mode == ClipboardMode::Clipboard
+        ? m_provideClipboardActionId
+        : m_provideSelectionActionId;
+
+    if (tracked != actionId && !abortAction(tracked, 1000))
+        return false;
+
+    tracked = actionId;
+    return true;
 }
 
 bool MainWindow::isItemMenuDefaultActionValid() const
@@ -2120,6 +2186,13 @@ void MainWindow::activateMenuItem(ClipboardBrowserPlaceholder *placeholder, cons
     PlatformWindowPtr lastWindow = m_windowForMenuPaste;
 
     if ( m_options.trayItemPaste && !omitPaste && canPaste() ) {
+        // Raise the target window before paste so that getCurrentWindow()
+        // returns it even when the scripted paste() path is taken.  On
+        // macOS, closing the menu transitions the app to background, so
+        // without this raise getCurrentWindow() returns the wrong window.
+        if (lastWindow)
+            lastWindow->raise();
+
         if (isScriptOverridden(ScriptOverrides::Paste)) {
             COPYQ_LOG("Pasting item with paste()");
             runScript(QStringLiteral("paste()"));
@@ -2139,7 +2212,32 @@ bool MainWindow::toggleMenu(TrayMenu *menu, QPoint pos)
     }
 
     menu->popup( toScreen(pos, menu) );
+
+#ifdef Q_OS_MACOS
+    // On macOS, menus need the full activation sequence even when Qt
+    // considers the app already active (popup() created a Qt window, so
+    // applicationState() returns ApplicationActive even though macOS may
+    // not have granted real focus yet).  Flush events between activation
+    // and raiseWindow so the activation-policy change from
+    // ForegroundBackgroundFilter is fully processed before the
+    // platform-level focus steal.
+    menu->activateWindow();
+    QApplication::setActiveWindow(menu);
+    QApplication::processEvents();
+#endif
     raiseWindow(menu);
+
+    // On Wayland the menu is a frameless toplevel (not a popup), so
+    // raiseWindow's activation guard ("app already active") is not
+    // sufficient — the compositor won't move focus from another toplevel
+    // (e.g. an open dialog) to the newly mapped menu window without an
+    // explicit activation request after the raise.
+    if (!menu->windowFlags().testFlag(Qt::Popup)) {
+        menu->activateWindow();
+        QApplication::setActiveWindow(menu);
+        menu->setFocus();
+    }
+
     return true;
 }
 
@@ -2965,7 +3063,7 @@ void MainWindow::loadSettings(QSettings &settings, AppConfig *appConfig)
 {
     stopMenuCommandFilters(&m_itemMenuMatchCommands);
     stopMenuCommandFilters(&m_trayMenuMatchCommands);
-    terminateAction(&m_displayActionId);
+    abortAction(m_displayActionId);
 
     theme().decorateMainWindow(this);
     ui->scrollAreaItemPreview->setObjectName("ClipboardBrowser");
@@ -3001,6 +3099,12 @@ void MainWindow::loadSettings(QSettings &settings, AppConfig *appConfig)
             doSaveTabPositions(appConfig);
         saveTabs();
     }
+
+    // Show the tray icon early so it is visible while the encryption
+    // password dialog blocks (see https://github.com/hluk/CopyQ/issues/3502).
+    m_options.nativeTrayMenu = appConfig->option<Config::native_tray_menu>();
+    setTrayEnabled( !appConfig->option<Config::disable_tray>() );
+    updateIcon();
 
     promptForEncryptionPasswordIfNeeded(appConfig);
     reencryptTabsIfNeeded(appConfig);
@@ -3083,12 +3187,7 @@ void MainWindow::loadSettings(QSettings &settings, AppConfig *appConfig)
     m_trayMenu->setStyleSheet(menuStyleSheet);
     m_menu->setStyleSheet(menuStyleSheet);
 
-    if (m_options.nativeTrayMenu != appConfig->option<Config::native_tray_menu>())
-        m_options.nativeTrayMenu = appConfig->option<Config::native_tray_menu>();
-    setTrayEnabled( !appConfig->option<Config::disable_tray>() );
     updateTrayMenuItems();
-
-    updateIcon();
 
     menuBar()->setNativeMenuBar( appConfig->option<Config::native_menu_bar>() );
 
@@ -3144,6 +3243,8 @@ void MainWindow::showWindow()
         showMaximized();
     else
         showNormal();
+
+    ensureWindowOnScreen(this);
 
     auto c = browser();
     if (c) {
@@ -3361,13 +3462,41 @@ void MainWindow::tabsMoved(const QString &oldPrefix, const QString &newPrefix)
     AppConfig appConfig;
     Tabs tabs;
 
-    // Rename tabs if needed.
+    // The stacked widget was already reordered by onTabsMoved before this
+    // slot fires.  Capture the original tab order from config so we can
+    // restore it if rollback is needed.
+    const QStringList originalTabOrder = appConfig.option<Config::tabs>();
+
+    // Rename tabs if needed, tracking successes for rollback.
+    struct RenamedTab { int index; QString oldName; };
+    QVector<RenamedTab> renamedTabs;
+    bool failed = false;
+
     for (int i = 0 ; i < newTabNames.size(); ++i) {
         const QString &newTabName = newTabNames[i];
         auto placeholder = getPlaceholder(i);
         const QString oldTabName = placeholder->tabName();
-        if (newTabName != oldTabName)
-            updateTabName(placeholder, newTabName, &appConfig, &tabs);
+        if (newTabName != oldTabName) {
+            if ( updateTabName(placeholder, newTabName, &appConfig, &tabs) ) {
+                renamedTabs.append({i, oldTabName});
+            } else {
+                ui->tabWidget->setTabName(i, oldTabName);
+                failed = true;
+                break;
+            }
+        }
+    }
+
+    if (failed && !renamedTabs.isEmpty()) {
+        log("Rolling back tab renames after partial failure", LogWarning);
+        for (auto it = renamedTabs.crbegin(); it != renamedTabs.crend(); ++it) {
+            const auto &r = *it;
+            auto placeholder = getPlaceholder(r.index);
+            if ( !updateTabName(placeholder, r.oldName, &appConfig, &tabs) )
+                log("Failed to roll back tab rename", LogError);
+            ui->tabWidget->setTabName(r.index, r.oldName);
+        }
+        ui->tabWidget->reorderTabs(originalTabOrder);
     }
 
     const QStringList tabNames = ui->tabWidget->tabs();
@@ -3602,6 +3731,15 @@ void MainWindow::setClipboard(const QVariantMap &data)
 
 void MainWindow::setClipboard(const QVariantMap &data, ClipboardMode mode)
 {
+    int &actionId = mode == ClipboardMode::Clipboard
+        ? m_provideClipboardActionId
+        : m_provideSelectionActionId;
+
+    // Abort the previous provider. Returns false if a re-entrant
+    // setClipboard() already handled this mode during the wait.
+    if (!abortAction(actionId, 1000))
+        return;
+
     m_clipboard->setData(mode, data);
 
     auto act = new Action();
@@ -3614,6 +3752,7 @@ void MainWindow::setClipboard(const QVariantMap &data, ClipboardMode mode)
           : QStringLiteral("provideSelection")
     });
     runInternalAction(act);
+    actionId = act->id();
 }
 
 void MainWindow::setClipboardAndSelection(const QVariantMap &data)
@@ -3895,35 +4034,27 @@ void MainWindow::updateFocusWindows()
 {
     m_isActiveWindow = isActiveWindow();
 
-    if ( QApplication::activePopupWidget() )
+    if ( QApplication::activePopupWidget() ) {
+        qCDebug(logCategory) << "Focus: popup";
         return;
+    }
 
     auto platform = platformNativeInterface();
     PlatformWindowPtr lastWindow = platform->getCurrentWindow();
-    if (lastWindow) {
-        const QWidget *activeWindow = qApp->activeWindow();
-        if (activeWindow) {
-            if (activeWindow == m_trayMenu || activeWindow == m_menu) {
-                COPYQ_LOG(
-                    QStringLiteral("Focus window is \"%1\" - tray menu")
-                    .arg(lastWindow->getTitle()) );
-            } else if (activeWindow == this) {
-                COPYQ_LOG(QStringLiteral("Focus window is the main window"));
-                m_windowForMenuPaste = lastWindow;
-            } else {
-                COPYQ_LOG(QStringLiteral("Focus window is \"%1\": [%2] %3").arg(
-                    lastWindow->getTitle(),
-                    QLatin1String(activeWindow->metaObject()->className()),
-                    activeWindow->windowTitle()
-                ));
-                m_windowForMainPaste = lastWindow;
-                m_windowForMenuPaste = lastWindow;
-            }
-        } else {
-            COPYQ_LOG( QStringLiteral("Focus window is \"%1\"").arg(lastWindow->getTitle()) );
-            m_windowForMainPaste = lastWindow;
-            m_windowForMenuPaste = lastWindow;
-        }
+    if (!lastWindow)
+        return;
+
+    if (lastWindow->matchesWidget(this)) {
+        qCDebug(logCategory) << "Focus: main window";
+        m_windowForMenuPaste = lastWindow;
+    } else if (lastWindow->matchesWidget(m_trayMenu)) {
+        qCDebug(logCategory) << "Focus: tray menu";
+    } else if (lastWindow->matchesWidget(m_menu)) {
+        qCDebug(logCategory) << "Focus: menu";
+    } else {
+        qCDebug(logCategory) << "Focus:" << lastWindow->getTitle();
+        m_windowForMainPaste = lastWindow;
+        m_windowForMenuPaste = lastWindow;
     }
 }
 
@@ -3960,7 +4091,9 @@ void MainWindow::findNextOrPrevious()
 
 void MainWindow::enterBrowseMode()
 {
-    getPlaceholder()->setFocus();
+    auto placeholder = getPlaceholder();
+    if (placeholder)
+        placeholder->setFocus();
     ui->searchBar->hide();
 
     auto c = browserOrNull();

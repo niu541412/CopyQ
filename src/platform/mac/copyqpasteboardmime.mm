@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "copyqpasteboardmime.h"
+#include "cfref.h"
 
 #include "common/log.h"
 #include "common/mimetypes.h"
@@ -45,29 +46,16 @@ namespace {
 
     QString convertUtiOrMime(const QString &in, CFStringRef (*convert)(CFStringRef)) {
         NSString *inString = in.toNSString();
-        CFStringRef outRef = convert((__bridge CFStringRef)inString);
+        CFRef<CFStringRef> outRef = convert((__bridge CFStringRef)inString);
         QString out;
-        if (outRef) {
-            out = QString::fromNSString((__bridge NSString *)outRef);
-            CFRelease(outRef);
-        }
+        if (outRef)
+            out = QString::fromNSString((__bridge NSString *)outRef.get());
         return out;
     }
 
 }
 
-#if QT_VERSION < QT_VERSION_CHECK(6,0,0)
-QString CopyQPasteboardMime::convertorName()
-{
-    return QLatin1String("CopyQ");
-}
-#endif
-
-#if QT_VERSION >= QT_VERSION_CHECK(6,0,0)
 QString CopyQPasteboardMime::utiForMime(const QString &mime) const
-#else
-QString CopyQPasteboardMime::flavorFor(const QString &mime)
-#endif
 {
     if (shouldIgnoreMime(mime)) {
         return QString();
@@ -85,11 +73,7 @@ QString CopyQPasteboardMime::flavorFor(const QString &mime)
     return QString();
 }
 
-#if QT_VERSION >= QT_VERSION_CHECK(6,0,0)
 QString CopyQPasteboardMime::mimeForUti(const QString &uti) const
-#else
-QString CopyQPasteboardMime::mimeFor(QString uti)
-#endif
 {
     if (shouldIgnoreUTI(uti)) {
         return QString();
@@ -108,37 +92,8 @@ QString CopyQPasteboardMime::mimeFor(QString uti)
     return COPYQ_MIME_PREFIX + uti;
 }
 
-#if QT_VERSION < QT_VERSION_CHECK(6,0,0)
-bool CopyQPasteboardMime::canConvert(const QString &mime, QString uti)
-{
-    if (uti.isEmpty() || mime.isEmpty())
-        return false;
 
-    // Allow to set UTI directly in QMimeData.
-    if (mime == uti)
-        return true;
-
-    if (shouldIgnoreMime(mime))
-        return false;
-
-    if (shouldIgnoreUTI(uti))
-        return false;
-
-    QString convMime = convertUtiOrMime(uti, utiToMime);
-
-    if (convMime != mime) {
-        COPYQ_LOG(QString("Can't convert between %1 and %2").arg(uti).arg(mime));
-    }
-
-    return (convMime == mime);
-}
-#endif
-
-#if QT_VERSION >= QT_VERSION_CHECK(6,0,0)
 QVariant CopyQPasteboardMime::convertToMime(const QString &mime, const QList<QByteArray> &data, const QString &uti) const
-#else
-QVariant CopyQPasteboardMime::convertToMime(const QString &mime, QList<QByteArray> data, QString uti)
-#endif
 {
     if (!canConvert(mime, uti)) {
         return QVariant();
@@ -155,11 +110,7 @@ QVariant CopyQPasteboardMime::convertToMime(const QString &mime, QList<QByteArra
     }
 }
 
-#if QT_VERSION >= QT_VERSION_CHECK(6,0,0)
 QList<QByteArray> CopyQPasteboardMime::convertFromMime(const QString &mime, const QVariant &data, const QString &uti) const
-#else
-QList<QByteArray> CopyQPasteboardMime::convertFromMime(const QString &mime, QVariant data, QString uti)
-#endif
 {
     if (!canConvert(mime, uti)) {
         return QList<QByteArray>();

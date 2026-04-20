@@ -5,7 +5,7 @@ template <typename AddDocumentationCallback>
 void addDocumentation(AddDocumentationCallback addDocumentation)
 {
 
-    addDocumentation("version", "version() -> string", "Returns version string.");
+    addDocumentation("version", "version() -> string", "Returns versions, features and host system information.");
     addDocumentation("help", "help() -> string", "Returns help string.");
     addDocumentation("help", "help(searchString, ...) -> string", "Returns help for matched commands.");
     addDocumentation("show", "show()", "Shows main window.");
@@ -28,17 +28,17 @@ void addDocumentation(AddDocumentationCallback addDocumentation)
     addDocumentation("filter", "filter(filterText)", "Sets text for filtering items in main window.");
     addDocumentation("ignore", "ignore()", "Ignores current clipboard content (used for automatic commands).");
     addDocumentation("clipboard", "clipboard([mimeType]) -> `ByteArray`", "Returns clipboard data for MIME type (default is text).");
-    addDocumentation("selection", "selection([mimeType]) -> `ByteArray`", "Same as `clipboard()` for `Linux mouse selection`_.");
+    addDocumentation("selection", "selection([mimeType]) -> `ByteArray`", "Same as `clipboard()` for `primary selection`_.");
     addDocumentation("hasClipboardFormat", "hasClipboardFormat(mimeType) -> bool", "Returns true only if clipboard contains MIME type.");
-    addDocumentation("hasSelectionFormat", "hasSelectionFormat(mimeType) -> bool", "Same as `hasClipboardFormat()` for `Linux mouse selection`_.");
+    addDocumentation("hasSelectionFormat", "hasSelectionFormat(mimeType) -> bool", "Same as `hasClipboardFormat()` for `primary selection`_.");
     addDocumentation("isClipboard", "isClipboard() -> bool", "Returns true only in automatic command triggered by clipboard change.");
     addDocumentation("copy", "copy(text)", "Sets clipboard plain text.");
     addDocumentation("copy", "copy(mimeType, data, [mimeType, data]...)", "Sets clipboard data.");
     addDocumentation("copy", "copy(Item)", "Function override with an item argument.");
     addDocumentation("copy", "copy()", "Sends `Ctrl+C` to the current application or window to trigger a copy operation.");
-    addDocumentation("copySelection", "copySelection(text)", "Equivalent to the `copy` function with the same arguments, but for `Linux mouse selection`_.");
-    addDocumentation("copySelection", "copySelection(mimeType, data, [mimeType, data]...)", "Equivalent to the `copy` function with the same arguments, but for `Linux mouse selection`_.");
-    addDocumentation("copySelection", "copySelection(Item)", "Equivalent to the `copy` function with the same arguments, but for `Linux mouse selection`_.");
+    addDocumentation("copySelection", "copySelection(text)", "Sets primary selection plain text.");
+    addDocumentation("copySelection", "copySelection(mimeType, data, [mimeType, data]...)", "Sets primary selection data.");
+    addDocumentation("copySelection", "copySelection(Item)", "Sets primary selection from an item.");
     addDocumentation("paste", "paste()", "Sends `Shift+Insert` (or `Ctrl+V`) to the current application or window to trigger a paste operation.");
     addDocumentation("tab", "tab() -> array of strings", "Returns tab names.");
     addDocumentation("tab", "tab(tabName)", "Sets current tab for the script.");
@@ -81,7 +81,7 @@ void addDocumentation(AddDocumentationCallback addDocumentation)
     addDocumentation("config", "config(optionName, value) -> string", "Sets application option and returns new value.");
     addDocumentation("config", "config(optionName, value, ...) -> string", "Sets multiple application options and return list with values in format `optionName=newValue`.");
     addDocumentation("toggleConfig", "toggleConfig(optionName) -> bool", "Toggles an option (true to false and vice versa) and returns the new value.");
-    addDocumentation("info", "info([pathName]) -> string", "Returns paths and flags used by the application.");
+    addDocumentation("info", "info([pathName]) -> string", "Returns diagnostic info: versions, features, platform, environment variables and common paths.");
     addDocumentation("eval", "eval(script)", "Evaluates script and returns result.");
     addDocumentation("source", "source(fileName)", "Evaluates script file and returns result of last expression in the script.");
     addDocumentation("currentPath", "currentPath() -> string", "Get current path.");
@@ -122,6 +122,7 @@ void addDocumentation(AddDocumentationCallback addDocumentation)
     addDocumentation("sha512sum", "sha512sum(data) -> `ByteArray`", "Returns SHA512 checksum of data.");
     addDocumentation("open", "open(url, ...) -> bool", "Tries to open URLs in appropriate applications.");
     addDocumentation("execute", "execute(argument, ..., null, stdinData, ...) -> `FinishedCommand`", "Executes a command.");
+    addDocumentation("playSound", "playSound(fileOrObject)", "Plays audio file.");
     addDocumentation("currentWindowTitle", "String currentWindowTitle() -> string", "Returns window title of currently focused window.");
     addDocumentation("currentClipboardOwner", "String currentClipboardOwner() -> string", "Returns name of the current clipboard owner.");
     addDocumentation("dialog", "dialog(...)", "Shows messages or asks user for input.");
@@ -157,11 +158,11 @@ void addDocumentation(AddDocumentationCallback addDocumentation)
     addDocumentation("iconTagColor", "iconTagColor() -> string", "Get current tray and window tag color name.");
     addDocumentation("iconTagColor", "iconTagColor(colorName)", "Set current tray and window tag color name.");
     addDocumentation("loadTheme", "loadTheme(path)", "Loads theme from an INI file.");
-    addDocumentation("onClipboardChanged", "onClipboardChanged()", "Called when clipboard or `Linux mouse selection`_ changes and is not set by CopyQ, is not marked as hidden nor secret (see the other callbacks).");
-    addDocumentation("onOwnClipboardChanged", "onOwnClipboardChanged()", "Called when clipboard or `Linux mouse selection`_ is set by CopyQ and is not marked as hidden nor secret (see the other callbacks).");
-    addDocumentation("onHiddenClipboardChanged", "onHiddenClipboardChanged()", "Called when clipboard or `Linux mouse selection`_ changes and is marked as hidden but not secret (see the other callbacks).");
-    addDocumentation("onSecretClipboardChanged", "onSecretClipboardChanged()", "Called if the clipboard or `Linux mouse selection`_ changes and contains a password or other secret (for example, copied from clipboard manager).");
-    addDocumentation("onClipboardUnchanged", "onClipboardUnchanged()", "Called when clipboard or `Linux mouse selection`_ changes but data remained the same.");
+    addDocumentation("onClipboardChanged", "onClipboardChanged()", "Called when clipboard or `primary selection`_ changes and is not set by CopyQ, is not marked as hidden nor secret (see the other callbacks).");
+    addDocumentation("onOwnClipboardChanged", "onOwnClipboardChanged()", "Called when clipboard or `primary selection`_ is set by CopyQ and is not marked as hidden nor secret (see the other callbacks).");
+    addDocumentation("onHiddenClipboardChanged", "onHiddenClipboardChanged()", "Called when clipboard or `primary selection`_ changes and is marked as hidden but not secret (see the other callbacks).");
+    addDocumentation("onSecretClipboardChanged", "onSecretClipboardChanged()", "Called if the clipboard or `primary selection`_ changes and contains a password or other secret (for example, copied from clipboard manager).");
+    addDocumentation("onClipboardUnchanged", "onClipboardUnchanged()", "Called when clipboard or `primary selection`_ changes but data remained the same.");
     addDocumentation("onStart", "onStart()", "Called when application starts.");
     addDocumentation("onExit", "onExit()", "Called just before application exists.");
     addDocumentation("runAutomaticCommands", "runAutomaticCommands() -> bool", "Executes automatic commands on current data.");
@@ -169,10 +170,10 @@ void addDocumentation(AddDocumentationCallback addDocumentation)
     addDocumentation("updateTitle", "updateTitle()", "Update main window title and tool tip from current data.");
     addDocumentation("updateClipboardData", "updateClipboardData()", "Sets current clipboard data for tray menu, window title and notification.");
     addDocumentation("setTitle", "setTitle([title])", "Set main window title and tool tip.");
-    addDocumentation("synchronizeToSelection", "synchronizeToSelection(text)", "Synchronize current data from clipboard to `Linux mouse selection`_.");
-    addDocumentation("synchronizeFromSelection", "synchronizeFromSelection(text)", "Synchronize current data from `Linux mouse selection`_ to clipboard.");
+    addDocumentation("synchronizeToSelection", "synchronizeToSelection(text)", "Synchronize current data from clipboard to `primary selection`_.");
+    addDocumentation("synchronizeFromSelection", "synchronizeFromSelection(text)", "Synchronize current data from `primary selection`_ to clipboard.");
     addDocumentation("provideClipboard", "provideClipboard()", "Starts a process provides a data for clipboard.");
-    addDocumentation("provideSelection", "provideSelection()", "Starts a process that provides a data for `Linux mouse selection`_.");
+    addDocumentation("provideSelection", "provideSelection()", "Starts a process that provides a data for `primary selection`_.");
     addDocumentation("monitorClipboard", "monitorClipboard()", "Starts a clipboard monitor process.");
     addDocumentation("clipboardFormatsToSave", "clipboardFormatsToSave() -> array of strings", "Returns list of clipboard format to save automatically.");
     addDocumentation("saveData", "saveData()", "Save current data (depends on `mimeOutputTab`).");
@@ -181,6 +182,7 @@ void addDocumentation(AddDocumentationCallback addDocumentation)
     addDocumentation("hideDataNotification", "hideDataNotification()", "Hide notification for current data.");
     addDocumentation("setClipboardData", "setClipboardData()", "Sets clipboard data for menu commands.");
     addDocumentation("styles", "styles() -> array of strings", "List available styles for `style` option.");
+    addDocumentation("stats", "stats() -> string", "Get runtime diagnostics and statistics about the application state.");
     addDocumentation("onItemsAdded", "onItemsAdded()", "Called when items are added to a tab.");
     addDocumentation("onItemsRemoved", "onItemsRemoved()", "Called when items are being removed from a tab.");
     addDocumentation("onItemsChanged", "onItemsChanged()", "Called when data in items change.");
@@ -208,7 +210,7 @@ void addDocumentation(AddDocumentationCallback addDocumentation)
     addDocumentation("mimeItemNotes", "mimeItemNotes", "Data contains notes for item. Value: 'application/x-copyq-item-notes'.");
     addDocumentation("mimeIcon", "mimeIcon", "Data contains icon for item. Value: 'application/x-copyq-item-icon'.");
     addDocumentation("mimeOwner", "mimeOwner", "If available, the clipboard was set from CopyQ (from script or copied items). Value: 'application/x-copyq-owner'.");
-    addDocumentation("mimeClipboardMode", "mimeClipboardMode", "Contains `selection` if data is from `Linux mouse selection`_. Value: 'application/x-copyq-clipboard-mode'.");
+    addDocumentation("mimeClipboardMode", "mimeClipboardMode", "Contains `selection` if data is from `primary selection`_. Value: 'application/x-copyq-clipboard-mode'.");
     addDocumentation("mimeCurrentTab", "mimeCurrentTab", "Current tab name when invoking command from main window. Value: 'application/x-copyq-current-tab'.");
     addDocumentation("mimeSelectedItems", "mimeSelectedItems", "Selected items when invoking command from main window. Value: 'application/x-copyq-selected-items'.");
     addDocumentation("mimeCurrentItem", "mimeCurrentItem", "Current item when invoking command from main window. Value: 'application/x-copyq-current-item'.");

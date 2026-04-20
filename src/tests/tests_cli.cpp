@@ -104,6 +104,18 @@ void Tests::rotateLog()
     QVERIFY2( logFiles.isEmpty(), logFilesMessage(logFileCount) );
 }
 
+void Tests::pluginsDisabled()
+{
+    // Ensure that plugins that could interfere with tests are disabled
+    RUN_EXPECT_ERROR("plugins.itemsync", CommandException);
+    RUN_EXPECT_ERROR("plugins.itemencrypted", CommandException);
+    RUN_EXPECT_ERROR("plugins.itempinned", CommandException);
+
+    const QByteArray log = readLogFile(maxReadLogSize);
+    QVERIFY2( !log.contains("itemencrypted"), log );
+    QVERIFY2( !log.contains("[copyq.plugin"), log );
+}
+
 void Tests::commandHelp()
 {
     QByteArray stdoutActual;
@@ -153,6 +165,18 @@ void Tests::commandVersion()
     QVERIFY( version.contains(QRegularExpression("\\bCopyQ\\b.*" + QRegularExpression::escape(versionString))) );
     // Version contains Qt version.
     QVERIFY( version.contains(QRegularExpression("\\bQt:\\s+\\d")) );
+
+    // Version string format: Major.Minor.Patch[.N-gSHA]
+    //   14.0.0                (tagged release)
+    //   14.0.0.4-g1175475d    (4 commits after tag)
+    const QRegularExpression re(
+        "^\\d+\\.\\d+\\.\\d+"     // Major.Minor.Patch
+        "(\\.\\d+-g[0-9a-f]+)?$"  // optional .commits-gSHA suffix
+    );
+    QVERIFY2(
+        re.match(versionString).hasMatch(),
+        qPrintable(QStringLiteral("versionString '%1' does not match expected format").arg(versionString))
+    );
 }
 
 void Tests::badCommand()
@@ -177,6 +201,11 @@ void Tests::badSessionName()
     ));
     RUN_EXPECT_ERROR("-s" << "max_16_characters_in_session_name_allowed" << "", CommandBadSyntax);
     RUN_EXPECT_ERROR("-s" << "spaces disallowed" << "", CommandBadSyntax);
+}
+
+void Tests::commandSession()
+{
+    RUN("--session" << sessionName << "eval" << "print(1)", "1");
 }
 
 void Tests::commandCatchExceptions()

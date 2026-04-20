@@ -1,0 +1,239 @@
+---
+name: Windows
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  pull_request:
+    branches: [master]
+
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  QT_VERSION: '6.10.2'
+  KF_VERSION: '6.23'
+  KF_PATCH: '0'
+  KF_BRANCH: stable
+  SNORETOAST_VERSION: '0.9.1'
+  QCA_VERSION: '2.3.10'
+  QTKEYCHAIN_VERSION: '0.15.0'
+  COPYQ_TESTS_SKIP_DRAG_AND_DROP: '1'
+  COPYQ_TESTS_SKIP_BASH: '1'
+  COPYQ_TESTS_NO_SYMLINKS: '1'
+  # There is no audio device on the CI system
+  COPYQ_TESTS_SKIP_AUDIO: '1'
+
+jobs:
+  build:
+    permissions:
+      contents: read
+    name: Windows
+    runs-on: windows-2025
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5
+        with:
+          submodules: false
+          persist-credentials: false
+          # Full commit history needed for sortable version string (git describe in CMake).
+          # Blobless filter skips file content for historical commits to speed up clone.
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
+        with:
+          arch: x64
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@d325aaf2a8baeeda41ad0b5d39f84a6af9bcf005 # v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: win64_msvc2022_64
+          modules: qtimageformats qt5compat
+          cache: true
+          set-env: true
+
+      - name: Set OpenSSL path
+        run: echo "OPENSSL_ROOT_DIR=C:/Program Files/OpenSSL" >> "$GITHUB_ENV"
+
+      - name: Enable sccache
+        uses: hendrikmuhs/ccache-action@33522472633dbd32578e909b315f5ee43ba878ce # v1.2.22
+        with:
+          variant: sccache
+          key: windows-msvc
+
+      - name: Set up dependency paths
+        run: |
+          DEPS_PREFIX="${GITHUB_WORKSPACE}/deps/install"
+          echo "DEPS_PREFIX=$DEPS_PREFIX" >> "$GITHUB_ENV"
+          echo "$DEPS_PREFIX/bin" >> "$GITHUB_PATH"
+          # Extend CMAKE_PREFIX_PATH with Qt and KDE deps.
+          # install-qt-action sets QT_ROOT_DIR but may not set CMAKE_PREFIX_PATH.
+          echo "CMAKE_PREFIX_PATH=${DEPS_PREFIX}/lib/cmake;${DEPS_PREFIX}/share/ECM/cmake;${QT_ROOT_DIR}/lib/cmake" >> "$GITHUB_ENV"
+
+      - name: Cache KDE dependencies
+        id: cache-deps
+        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ${{ github.workspace }}/deps/install
+          key: >-
+            windows-deps
+            -kf${{ env.KF_VERSION }}.${{ env.KF_PATCH }}
+            -qca${{ env.QCA_VERSION }}
+            -qtkeychain${{ env.QTKEYCHAIN_VERSION }}
+            -snoretoast${{ env.SNORETOAST_VERSION }}
+            -${{ hashFiles('utils/patches/**') }}
+
+      - name: Build KDE dependencies
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: utils/github/build-windows-deps.sh
+
+      - name: Save dependency cache
+        if: github.event_name == 'push'
+        uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ${{ github.workspace }}/deps/install
+          key: >-
+            windows-deps
+            -kf${{ env.KF_VERSION }}.${{ env.KF_PATCH }}
+            -qca${{ env.QCA_VERSION }}
+            -qtkeychain${{ env.QTKEYCHAIN_VERSION }}
+            -snoretoast${{ env.SNORETOAST_VERSION }}
+            -${{ hashFiles('utils/patches/**') }}
+
+      - name: Download miniaudio
+        uses: ./.github/actions/download-miniaudio
+
+      - name: Build with CMake
+        uses: lukka/run-cmake@5d55ea7949e25f69f0ecb516d8d572297e03a956 # v10
+        env:
+          VCPKG_ROOT: ''
+        with:
+          configurePreset: Windows
+          buildPreset: Windows
+          configurePresetAdditionalArgs: >-
+            [
+            '-DWITH_NATIVE_NOTIFICATIONS=TRUE',
+            '-DWITH_QCA_ENCRYPTION=TRUE',
+            '-DWITH_KEYCHAIN=TRUE'
+            ]
+
+
+      - name: Get version string
+        id: version
+        uses: ./.github/actions/get-version
+        with:
+          build_dir: ${{ github.workspace }}/build/copyq/Windows
+
+      - name: Compute numeric version for installer
+        id: version_numeric
+        shell: bash
+        run: |
+          # VersionInfoVersion requires numeric-only (x.x.x or x.x.x.x).
+          numeric="$APP_VERSION"
+          numeric="${numeric%-g*}"
+          echo "value=$numeric" >> "$GITHUB_OUTPUT"
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Deploy application
+        run: utils/github/deploy-windows.sh
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
+          BUILD_DIR: ${{ github.workspace }}/build/copyq/Windows
+
+      - name: Set up GPG for tests
+        shell: pwsh
+        run: |
+          $env:PATH = "C:\Program Files\Git\usr\bin;$env:PATH"
+          New-Item -ItemType Directory -Force "$HOME\.gnupg" | Out-Null
+          gpg --version
+
+      - name: Test
+        working-directory: ${{ github.workspace }}/copyq-${{ steps.version.outputs.version }}
+        run: |
+          PATH="$(pwd):/c/Program Files/Git/usr/bin"
+          export PATH
+          ./copyq-tests.exe
+        env:
+          QT_FORCE_STDERR_LOGGING: 1
+          COPYQ_LOG_LEVEL: DEBUG
+          COPYQ_TESTS_RERUN_FAILED: 1
+          COPYQ_PLUGINS: ${{ github.workspace }}\copyq-${{ steps.version.outputs.version }}\itemtests.dll
+
+      - name: Separate test files from portable app
+        run: |
+          APP="copyq-${APP_VERSION}"
+          mkdir -p "${APP}-tests"
+          mv "${APP}/copyq-tests.exe" "${APP}-tests/"
+          mv "${APP}/itemtests.dll" "${APP}-tests/"
+          mv "${APP}/Qt6Test.dll" "${APP}-tests/"
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          & "C:/Program Files (x86)/Inno Setup 6/ISCC.exe" `
+            /O"$env:GITHUB_WORKSPACE" `
+            /DAppVersion="$env:APP_VERSION" `
+            /DAppVersionNumeric="$env:APP_VERSION_NUMERIC" `
+            /DRoot="$env:GITHUB_WORKSPACE/copyq-$env:APP_VERSION" `
+            /DSource="$env:GITHUB_WORKSPACE" `
+            "$env:GITHUB_WORKSPACE/shared/copyq.iss"
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
+          APP_VERSION_NUMERIC: ${{ steps.version_numeric.outputs.value }}
+
+      - name: Create portable zip
+        run: 7z a "copyq-${APP_VERSION}.zip" "copyq-${APP_VERSION}"
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Upload portable zip
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: copyq-${{ steps.version.outputs.version }}.zip
+          path: copyq-${{ steps.version.outputs.version }}.zip
+          archive: false
+
+      - name: Upload installer
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: copyq-${{ steps.version.outputs.version }}-setup.exe
+          path: copyq-${{ steps.version.outputs.version }}-setup.exe
+          archive: false
+
+      - name: Upload tests
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: copyq-${{ steps.version.outputs.version }}-tests.zip
+          path: copyq-${{ steps.version.outputs.version }}-tests
+          archive: true
+
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+
+      - name: Upload to release
+        run: |
+          gh release create "$GITHUB_REF_NAME" --draft --notes "" 2>/dev/null || true
+          gh release upload "$GITHUB_REF_NAME" copyq-*/*.zip copyq-*/*.exe --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
