@@ -10,6 +10,7 @@
 #include <QElapsedTimer>
 #include <QRegularExpression>
 #include <QTemporaryFile>
+#include <algorithm>
 
 void Tests::commandExit()
 {
@@ -51,6 +52,59 @@ void Tests::commandEvalThrows()
     RUN_EXPECT_ERROR("eval" << "throw Error(1)", CommandException);
     RUN_EXPECT_ERROR("eval" << "throw 1", CommandException);
 }
+
+void Tests::commandEvalThrowsWithLineNumber()
+{
+    // Multi-line script: exception on a specific line
+    RUN_EXPECT_ERROR_WITH_STDERR(
+        "eval" << "var x = 1\nvar y = 2\nthrow Error('on line 3')",
+        CommandException,
+        "At line 3 in:\n"
+        " 1|var x = 1\n"
+        " 2|var y = 2\n"
+        " 3|throw Error('on line 3')\n"
+    );
+
+    // Single-line throw: line number is 1
+    RUN_EXPECT_ERROR_WITH_STDERR(
+        "throw Error('single line')", CommandException,
+        "At line 1 in:\n"
+    );
+
+    // Non-Error throw: no line number (no .lineNumber on plain string)
+    RUN_EXPECT_ERROR_WITH_STDERR(
+        "throw 'no line info'", CommandException,
+        "ScriptError: no line info\n"
+    );
+
+    // Nested eval: inner script is multiline (2 lines)
+    RUN_EXPECT_ERROR_WITH_STDERR(
+        "eval" << "eval(\"\\\\nthrow Error('nested')\")",
+        CommandException,
+        "At line 2 in:\n"
+        " 1|\n"
+        " 2|throw Error('nested')\n"
+    );
+
+    // Doubly nested eval: both inner scripts are multiline.
+    // Inner script is 3 lines, middle script is 2 lines.
+    RUN_EXPECT_ERROR_WITH_STDERR(
+        "eval" << "eval(\"\\\\neval('\\\\\\\\n\\\\\\\\nthrow Error()')\")",
+        CommandException,
+        "At line 3 in:\n"
+        " 1|\n"
+        " 2|\n"
+        " 3|throw Error()\n"
+    );
+
+    // Verify the middle frame in the doubly nested case is also numbered
+    RUN_EXPECT_ERROR_WITH_STDERR(
+        "eval" << "eval(\"\\\\neval('\\\\\\\\n\\\\\\\\nthrow Error()')\")",
+        CommandException,
+        " 2|eval('\\n\\nthrow Error()')\n"
+    );
+}
+
 
 void Tests::commandEvalSyntaxError()
 {
@@ -149,6 +203,21 @@ void Tests::commandShowHide()
     WAIT_ON_OUTPUT("visible", "true\n");
 }
 
+
+void Tests::commandShowHideRapid()
+{
+    // Verify the main window can be hidden and reshown reliably in
+    // rapid succession.  Regression test for #3445: deferred platform
+    // raise in raiseWindow() could prevent the window from appearing.
+    for (int i = 0; i < 3; ++i) {
+        RUN("visible", "true\n");
+        RUN("hide", "");
+        WAIT_ON_OUTPUT("visible", "false\n");
+
+        RUN("show", "");
+        WAIT_ON_OUTPUT("visible", "true\n");
+    }
+}
 void Tests::commandShowAt()
 {
     RUN("visible", "true\n");
@@ -528,10 +597,15 @@ void Tests::commandsGetSetItem()
 
 void Tests::commandsChecksums()
 {
-    RUN("md5sum" << "TEST", "033bd94b1168d7e4f0d644c3c95e35bf\n");
-    RUN("sha1sum" << "TEST", "984816fd329622876e14907634264e6f332e9fb3\n");
-    RUN("sha256sum" << "TEST", "94ee059335e587e501cc4bf90613e0814f00a7b08bc7c648fd865a2af6a22cc2\n");
-    RUN("sha512sum" << "TEST", "7bfa95a688924c47c7d22381f20cc926f524beacb13f84e203d4bd8cb6ba2fce81c57a5f059bf3d509926487bde925b3bcee0635e4f7baeba054e5dba696b2bf\n");
+    RUN("eval" <<
+        "[md5sum('TEST'), sha1sum('TEST'),"
+        " sha256sum('TEST'), sha512sum('TEST')]"
+        ,
+        "033bd94b1168d7e4f0d644c3c95e35bf\n"
+        "984816fd329622876e14907634264e6f332e9fb3\n"
+        "94ee059335e587e501cc4bf90613e0814f00a7b08bc7c648fd865a2af6a22cc2\n"
+        "7bfa95a688924c47c7d22381f20cc926f524beacb13f84e203d4bd8cb6ba2fce81c57a5f059bf3d509926487bde925b3bcee0635e4f7baeba054e5dba696b2bf\n"
+    );
 }
 
 void Tests::commandEscapeHTML()
@@ -599,16 +673,16 @@ void Tests::commandSleep()
         [&]{
             QElapsedTimer t;
             t.start();
-            RUN("sleep" << "1000", "");
-            const auto afterElapsed1000Ms = t.elapsed();
-            QVERIFY(afterElapsed1000Ms > 1000);
+            RUN("sleep" << "200", "");
+            const auto afterElapsed200Ms = t.elapsed();
+            QVERIFY(afterElapsed200Ms > 200);
         },
         [&]{
             QElapsedTimer t;
             t.start();
-            RUN("sleep" << "100", "");
-            const auto afterElapsed100Ms = t.elapsed();
-            QVERIFY(afterElapsed100Ms > 100);
+            RUN("sleep" << "50", "");
+            const auto afterElapsed50Ms = t.elapsed();
+            QVERIFY(afterElapsed50Ms > 50);
         }
     );
 }
@@ -642,8 +716,15 @@ void Tests::commandCopy()
     WAIT_FOR_CLIPBOARD2("B", "DATA");
 
     // Test copying UTF-8 text.
-    RUN("--" << "copy({[mimeText]: '\\\\u2705', [mimeTextUtf8]: '✅'})", "true\n");
-    WAIT_FOR_CLIPBOARD2("✅", mimeTextUtf8);
+    // On macOS, text/plain and text/plain;charset=utf-8 map to the same UTI
+    // (public.utf8-plain-text), so setting both with different values causes
+    // the pasteboard to return the wrong one. Only set mimeTextUtf8 on macOS.
+#ifdef Q_OS_MAC
+    RUN("--" << "copy({[mimeTextUtf8]: '\u2705'})", "true\n");
+#else
+    RUN("--" << "copy({[mimeText]: '\\\\u2705', [mimeTextUtf8]: '\u2705'})", "true\n");
+#endif
+    WAIT_FOR_CLIPBOARD2("\u2705", mimeTextUtf8);
 
     RUN( Args() << "copy"
          << "DATA3" << "C"
@@ -725,7 +806,7 @@ void Tests::commandEditItem()
     KEYS("END" << ":LINE 1" << "F2");
     const auto expected = QByteArrayLiteral("TESTLINE 1");
 #ifdef Q_OS_WIN
-    const auto expectedClipboard = QByteArrayLiteral("<!--StartFragment-->TESTLINE 1<!--EndFragment-->", mimeHtml);
+    const auto expectedClipboard = QByteArrayLiteral("<!--StartFragment-->TESTLINE 1<!--EndFragment-->");
 #else
     const auto expectedClipboard = expected;
 #endif
@@ -1071,21 +1152,28 @@ void Tests::commandFilter()
 
 void Tests::commandMimeTypes()
 {
-    RUN("print(mimeText)", mimeText);
-    RUN("print(mimeHtml)", mimeHtml);
-    RUN("print(mimeUriList)", mimeUriList);
-    RUN("print(mimeWindowTitle)", mimeWindowTitle);
-    RUN("print(mimeItems)", mimeItems);
-    RUN("print(mimeItemNotes)", mimeItemNotes);
-    RUN("print(mimeOwner)", mimeOwner);
-    RUN("print(mimeClipboardMode)", mimeClipboardMode);
-    RUN("print(mimeCurrentTab)", mimeCurrentTab);
-    RUN("print(mimeSelectedItems)", mimeSelectedItems);
-    RUN("print(mimeCurrentItem)", mimeCurrentItem);
-    RUN("print(mimeHidden)", mimeHidden);
-    RUN("print(mimeShortcut)", mimeShortcut);
-    RUN("print(mimeColor)", mimeColor);
-    RUN("print(mimeOutputTab)", mimeOutputTab);
+    RUN("eval" <<
+        "[mimeText, mimeHtml, mimeUriList, mimeWindowTitle,"
+        " mimeItems, mimeItemNotes, mimeOwner, mimeClipboardMode,"
+        " mimeCurrentTab, mimeSelectedItems, mimeCurrentItem,"
+        " mimeHidden, mimeShortcut, mimeColor, mimeOutputTab]"
+        ,
+        QByteArray(mimeText.data()) + "\n"
+        + mimeHtml + "\n"
+        + mimeUriList + "\n"
+        + mimeWindowTitle + "\n"
+        + mimeItems + "\n"
+        + mimeItemNotes + "\n"
+        + mimeOwner + "\n"
+        + mimeClipboardMode + "\n"
+        + mimeCurrentTab + "\n"
+        + mimeSelectedItems + "\n"
+        + mimeCurrentItem + "\n"
+        + mimeHidden + "\n"
+        + mimeShortcut + "\n"
+        + mimeColor + "\n"
+        + mimeOutputTab + "\n"
+    );
 }
 
 void Tests::commandUnload()
@@ -1152,6 +1240,183 @@ void Tests::commandServerLogAndLogs()
     QVERIFY( !stdoutActual.isEmpty() );
     QVERIFY2( QString::fromUtf8(stdoutActual).contains(re), stdoutActual );
 }
+
+void Tests::commandStats()
+{
+    QByteArray stdoutActual;
+    QByteArray stderrActual;
+    QCOMPARE( run(Args("stats"), &stdoutActual, &stderrActual), 0 );
+    QVERIFY2( testStderr(stderrActual), stderrActual );
+    QVERIFY( !stdoutActual.isEmpty() );
+    const auto stats = stdoutActual.split('\n');
+    QVERIFY2( stats.value(0).startsWith("TOTAL: "), stdoutActual);
+    QVERIFY2( stats.contains("QApplication: 1"), stdoutActual);
+    QVERIFY2( stats.contains("MainWindow: 1"), stdoutActual);
+    QVERIFY2( stats.contains("#MainWindow: 1"), stdoutActual);
+    QVERIFY2( stats.contains("#tabWidget: 1"), stdoutActual);
+    QVERIFY2( stats.contains("#searchBar: 1"), stdoutActual);
+    QVERIFY2( stats.contains("/MainWindow/#centralWidget/#tabWidget: 1"), stdoutActual);
+    QVERIFY2( stats.contains("/MainWindow/#centralWidget/Utils::FilterLineEdit#searchBar: 1"), stdoutActual);
+    QVERIFY2( stats.contains("/MainWindow/#centralWidget/#tabWidget/QStackedWidget/ClipboardBrowserPlaceholder/ClipboardBrowser: 1"), stdoutActual);
+    QVERIFY2( stats.contains("/MainWindow/#centralWidget/#tabWidget/QStackedWidget/ClipboardBrowserPlaceholder: 1"), stdoutActual);
+
+    // Verify model stats
+    RUN("add" << "test_item", "");
+    QCOMPARE( run(Args("stats"), &stdoutActual, &stderrActual), 0 );
+    QVERIFY2( testStderr(stderrActual), stderrActual );
+    const auto stats2 = stdoutActual.split('\n');
+    bool hasModelWithDataSize = false;
+    for (const auto &line : stats2) {
+        if (line.startsWith("MODEL ")) {
+            QVERIFY2(line.contains("rows="), line);
+            if (line.contains("dataSize=")) {
+                hasModelWithDataSize = true;
+                // Verify human-readable suffix is present
+                QVERIFY2(line.contains(" B)") || line.contains(" KiB)") || line.contains(" MiB)"), line);
+            }
+        }
+    }
+    QVERIFY2(hasModelWithDataSize, stdoutActual);
+
+    // Verify data directory size
+    bool hasDataDir = false;
+    for (const auto &line : stats2) {
+        if (line.startsWith("DATA_DIR ")) {
+            hasDataDir = true;
+            QVERIFY2(line.contains("size="), line);
+        }
+    }
+    QVERIFY2(hasDataDir, stdoutActual);
+
+    // Verify new stat lines
+    bool hasTabs = false;
+    bool hasCommands = false;
+    bool hasLogFiles = false;
+    for (const auto &line : stats2) {
+        if (line.startsWith("TABS: ")) {
+            hasTabs = true;
+            QVERIFY2(line.contains("total="), line);
+            QVERIFY2(line.contains("loaded="), line);
+        }
+        if (line.startsWith("COMMANDS: ")) {
+            hasCommands = true;
+            QVERIFY2(line.contains("automatic="), line);
+            QVERIFY2(line.contains("script="), line);
+        }
+        if (line.startsWith("LOG_FILES: ")) {
+            hasLogFiles = true;
+            QVERIFY2(line.contains("count="), line);
+            QVERIFY2(line.contains("size="), line);
+        }
+    }
+    QVERIFY2(hasTabs, stdoutActual);
+    QVERIFY2(hasCommands, stdoutActual);
+    QVERIFY2(hasLogFiles, stdoutActual);
+
+    // Verify monitorClipboard internal action appears with per-sub-process pid/rss
+    const auto isMonitorAction = [](const QByteArray &line) {
+        return line.startsWith("ACTION ") && line.contains("monitorClipboard");
+    };
+    const auto it = std::find_if(stats2.cbegin(), stats2.cend(), isMonitorAction);
+    QVERIFY2(it != stats2.cend(), stdoutActual);
+    QVERIFY2(it->contains("pid="), *it);
+}
+
+void Tests::statsQObjectLeak()
+{
+    // Set up items and commands that produce QObjects on selection change:
+    // - inMenu commands trigger context menu rebuilds (updateContextMenu)
+    // - display command triggers runDisplayCommands() on item widget creation
+    // - matchCmd triggers runMenuCommandFilters() on selection change
+    RUN("add" << "B" << "A", "");
+    const auto script = R"(
+        setCommands([
+            {name: 'cmd1', inMenu: true, shortcuts: ['Ctrl+F1'], cmd: 'copyq add cmd1'},
+            {name: 'cmd2', inMenu: true, globalShortcuts: ['Ctrl+F2'], cmd: 'copyq add cmd2'},
+            {name: 'cmd3', inMenu: true, matchCmd: 'copyq: true', cmd: 'copyq add cmd3'},
+            {name: 'cmd4', display: true, cmd: 'copyq: setData(mimeHtml, data(mimeText))'},
+        ])
+        )";
+    RUN(script, "");
+
+    // Open item preview.
+    KEYS(clipboardBrowserId << "F7");
+    RUN("preview", "true\n");
+
+    // Exercise the UI: select items back and forth to trigger menu rebuilds.
+    auto exerciseUI = [&]{
+        RUN("selectItems(0)", "true\n");
+        RUN("selectItems(1)", "true\n");
+        RUN("selectItems(0)", "true\n");
+        RUN("selectItems(1)", "true\n");
+    };
+
+    // Warm up: first pass may allocate lazy-init objects.
+    exerciseUI();
+
+    // Capture baseline QObject count.
+    QByteArray stdoutActual;
+    QByteArray stderrActual;
+    QCOMPARE( run(Args("stats"), &stdoutActual, &stderrActual), 0 );
+    QVERIFY2( testStderr(stderrActual), stderrActual );
+    const auto baseline = stdoutActual.split('\n').value(0);
+    QVERIFY2( baseline.startsWith("TOTAL: "), baseline );
+    const int baselineTotal = baseline.mid(7).trimmed().toInt();
+    QVERIFY(baselineTotal > 0);
+
+    // Exercise the same UI interactions again.
+    exerciseUI();
+
+    // Capture QObject count after second pass.
+    QCOMPARE( run(Args("stats"), &stdoutActual, &stderrActual), 0 );
+    QVERIFY2( testStderr(stderrActual), stderrActual );
+    const auto after = stdoutActual.split('\n').value(0);
+    QVERIFY2( after.startsWith("TOTAL: "), after );
+    const int afterTotal = after.mid(7).trimmed().toInt();
+
+    QVERIFY2(
+        afterTotal <= baselineTotal,
+        QStringLiteral("QObject count grew from %1 to %2 — possible leak")
+            .arg(baselineTotal).arg(afterTotal).toUtf8()
+    );
+}
+
+void Tests::statsItemPreview()
+{
+    RUN("add" << "test_item", "");
+
+    const QByteArray previewItemLine =
+        "/MainWindow/#dockWidgetItemPreview"
+        "/#dockWidgetItemPreviewContents/QScrollArea#ClipboardBrowser"
+        "/#item_preview/ItemText#item: 1";
+
+    QByteArray statsOutput;
+    auto fetchStats = [&]() {
+        QByteArray stderrActual;
+        run(Args("stats"), &statsOutput, &stderrActual);
+    };
+    auto statsContainPreviewItem = [&]() {
+        return statsOutput.split('\n').contains(previewItemLine);
+    };
+
+    // Preview disabled — no preview item widget in stats.
+    RUN("preview", "false\n");
+    fetchStats();
+    QVERIFY2(!statsContainPreviewItem(), statsOutput);
+
+    // Enable preview — item widget should appear.
+    KEYS(clipboardBrowserId << "F7");
+    RUN("preview", "true\n");
+    fetchStats();
+    QVERIFY2(statsContainPreviewItem(), statsOutput);
+
+    // Disable preview — item widget must be gone (not leaked).
+    KEYS(clipboardBrowserId << "F7");
+    RUN("preview", "false\n");
+    fetchStats();
+    QVERIFY2(!statsContainPreviewItem(), statsOutput);
+}
+
 
 void Tests::chainingCommands()
 {

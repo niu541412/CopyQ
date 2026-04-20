@@ -60,6 +60,8 @@ public:
 
     bool isRunning() const;
 
+    QList<qint64> processIds() const;
+
     /** Set human-readable name for action. */
     void setName(const QString &actionName) { m_name = actionName; }
 
@@ -83,6 +85,12 @@ public:
 
     /** Terminate (kill) process. */
     void terminate();
+
+    /** Async: send SIGTERM to child processes, no blocking wait. */
+    void requestTerminate();
+
+    /** Async: send SIGKILL to still-running child processes, no blocking wait. */
+    void requestKill();
 
 signals:
     /** Emitted when finished. */

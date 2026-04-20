@@ -3,6 +3,7 @@
 #include "scriptableproxy.h"
 
 #include "common/action.h"
+#include "common/audioplayer.h"
 #include "common/appconfig.h"
 #include "common/command.h"
 #include "common/commandstatus.h"
@@ -10,6 +11,7 @@
 #include "common/common.h"
 #include "common/config.h"
 #include "common/contenttype.h"
+#include "common/diagnostics.h"
 #include "common/display.h"
 #include "common/log.h"
 #include "common/mimetypes.h"
@@ -28,6 +30,7 @@
 #include "gui/traymenu.h"
 #include "gui/windowgeometryguard.h"
 #include "item/serialize.h"
+#include "item/clipboardmodel.h"
 #include "platform/platformnativeinterface.h"
 #include "platform/platformwindow.h"
 
@@ -48,6 +51,7 @@
 #include <QDialogButtonBox>
 #include <QFile>
 #include <QFileInfo>
+#include <QDirIterator>
 #include <QFileDialog>
 #include <QWidget>
 #include <QLabel>
@@ -67,6 +71,7 @@
 #include <QStyleFactory>
 #include <QTextEdit>
 #include <QUrl>
+#include <QAbstractItemModel>
 
 #include <type_traits>
 
@@ -75,24 +80,13 @@ namespace {
 const quint32 serializedFunctionCallMagicNumber = 0x58746908;
 const quint32 serializedFunctionCallVersion = 2;
 constexpr bool hasPriority = false;
+constexpr auto dataStreamVersion = QDataStream::Qt_6_2;
 
 void registerMetaTypes() {
     static bool registered = false;
     if (registered)
         return;
 
-#if QT_VERSION < QT_VERSION_CHECK(6,0,0)
-    qRegisterMetaType<QPointer<QWidget>>("QPointer<QWidget>");
-    qRegisterMetaTypeStreamOperators<ClipboardMode>("ClipboardMode");
-    qRegisterMetaTypeStreamOperators<Command>("Command");
-    qRegisterMetaTypeStreamOperators<NamedValueList>("NamedValueList");
-    qRegisterMetaTypeStreamOperators<NotificationButtonList>("NotificationButtonList");
-    qRegisterMetaTypeStreamOperators<QVector<int>>("QVector<int>");
-    qRegisterMetaTypeStreamOperators<QVector<Command>>("QVector<Command>");
-    qRegisterMetaTypeStreamOperators<VariantMapList>("VariantMapList");
-    qRegisterMetaTypeStreamOperators<KeyboardModifierList>("KeyboardModifierList");
-    qRegisterMetaTypeStreamOperators<MessageData>("MessageData");
-#else
     qRegisterMetaType<QPointer<QWidget>>("QPointer<QWidget>");
     qRegisterMetaType<ClipboardMode>("ClipboardMode");
     qRegisterMetaType<Command>("Command");
@@ -103,7 +97,6 @@ void registerMetaTypes() {
     qRegisterMetaType<VariantMapList>("VariantMapList");
     qRegisterMetaType<KeyboardModifierList>("KeyboardModifierList");
     qRegisterMetaType<MessageData>("MessageData");
-#endif
 
     registered = true;
 }
@@ -141,25 +134,13 @@ void selectionRemoveInvalid(QList<QPersistentModelIndex> *indexes)
         hasPriority ? CommandFunctionCallPriority : CommandFunctionCall); \
 } while(false)
 
-#if QT_VERSION >= QT_VERSION_CHECK(6,0,0)
-#   define CHECK_STREAM_OPERATORS(CALL) \
-        static constexpr auto metaType = QMetaType::fromType<Result>(); \
-        COPYQ_LOG_VERBOSE( \
-            QStringLiteral("%1 invoking: %2 " CALL)\
-                .arg(m_wnd ? "Server" : "Client") \
-                .arg(metaType.name())); \
-        Q_ASSERT(metaType.hasRegisteredDataStreamOperators())
-#else
-#   define CHECK_STREAM_OPERATORS(CALL) \
-        if ( hasLogLevel(LogTrace) ) { \
-            static const auto metaTypeName = QMetaType::typeName(qMetaTypeId<Result>()); \
-            COPYQ_LOG_VERBOSE( \
-                QStringLiteral("%1 invoking: %2 " CALL)\
-                    .arg(m_wnd ? "Server" : "Client") \
-                    .arg(metaTypeName) \
-            ); \
-        }
-#endif
+#define CHECK_STREAM_OPERATORS(CALL) \
+    static constexpr auto metaType = QMetaType::fromType<Result>(); \
+    COPYQ_LOG_VERBOSE( \
+        QStringLiteral("%1 invoking: %2 " CALL)\
+            .arg(m_wnd ? "Server" : "Client") \
+            .arg(metaType.name())); \
+    Q_ASSERT(metaType.hasRegisteredDataStreamOperators())
 
 #define INVOKE(FUNCTION, ARGUMENTS) do { \
     using Result = decltype(FUNCTION ARGUMENTS); \
@@ -335,11 +316,7 @@ public:
     {
         QByteArray bytes;
         QDataStream stream(&bytes, QIODevice::WriteOnly);
-#if QT_VERSION >= QT_VERSION_CHECK(6,0,0)
-        stream.setVersion(QDataStream::Qt_6_0);
-#else
-        stream.setVersion(QDataStream::Qt_5_0);
-#endif
+        stream.setVersion(dataStreamVersion);
         stream << serializedFunctionCallMagicNumber << serializedFunctionCallVersion
                << functionCallId << m_slotName << args;
         return bytes;
@@ -357,7 +334,7 @@ public:
         if ( std::is_same<QVariant, T>::value )
             return "QVariant";
 
-        return QMetaType::typeName(qMetaTypeId<T>());
+        return QMetaType(qMetaTypeId<T>()).name();
     }
 
 private:
@@ -596,22 +573,22 @@ QWidget *createWidget(const QString &name, const QVariant &value, InputDialog *i
 {
     QWidget *parent = inputDialog->parent;
 
-    switch ( value.type() ) {
-    case QVariant::Bool:
+    switch ( value.typeId() ) {
+    case QMetaType::Bool:
         return label(name, createAndSetWidget<QCheckBox>("checked", value, parent));
-    case QVariant::Int:
+    case QMetaType::Int:
         return createSpinBox(name, value, parent);
-    case QVariant::Date:
+    case QMetaType::QDate:
         return createDateTimeEdit(name, "date", value, parent);
-    case QVariant::Time:
+    case QMetaType::QTime:
         return createDateTimeEdit(name, "time", value, parent);
-    case QVariant::DateTime:
+    case QMetaType::QDateTime:
         return createDateTimeEdit(name, "dateTime", value, parent);
-    case QVariant::List:
-    case QVariant::StringList:
+    case QMetaType::QVariantList:
+    case QMetaType::QStringList:
         return createListWidget(name, value.toStringList(), inputDialog);
     default:
-        if ( value.type() == QVariant::Url ) {
+        if ( value.typeId() == QMetaType::QUrl ) {
             const auto path = value.toUrl();
             return createFileNameEdit(name, path.toLocalFile(), parent);
         }
@@ -659,10 +636,8 @@ ScriptableProxy::ScriptableProxy(MainWindow *mainWindow, QObject *parent)
     , m_wnd(mainWindow)
 {
     registerMetaTypes();
-#if QT_VERSION >= QT_VERSION_CHECK(6,0,0)
     Q_ASSERT(QMetaType::fromType<Command>().hasRegisteredDataStreamOperators());
     Q_ASSERT(QMetaType::fromType<ClipboardMode>().hasRegisteredDataStreamOperators());
-#endif
 }
 
 void ScriptableProxy::callFunction(const QByteArray &serializedFunctionCall)
@@ -692,7 +667,7 @@ QByteArray ScriptableProxy::callFunctionHelper(const QByteArray &serializedFunct
     int functionCallId;
     {
         QDataStream stream(serializedFunctionCall);
-        stream.setVersion(QDataStream::Qt_5_0);
+        stream.setVersion(dataStreamVersion);
 
         quint32 magicNumber;
         quint32 version;
@@ -771,14 +746,10 @@ QByteArray ScriptableProxy::callFunctionHelper(const QByteArray &serializedFunct
         called = metaMethod.invoke(
                 this, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8]);
     } else {
-#if QT_VERSION >= QT_VERSION_CHECK(6,0,0)
         const QMetaType metaType(typeId);
         COPYQ_LOG_VERBOSE(QStringLiteral("Script function return type: %1").arg(metaType.name()));
         Q_ASSERT(metaType.hasRegisteredDataStreamOperators());
         returnValue = QVariant(metaType, nullptr);
-#else
-        returnValue = QVariant(typeId, nullptr);
-#endif
         const auto genericReturnValue = returnValue.isValid()
                 ? QGenericReturnArgument( returnValue.typeName(), static_cast<void*>(returnValue.data()) )
                 : QGenericReturnArgument( "QVariant", static_cast<void*>(returnValue.data()) );
@@ -859,6 +830,7 @@ QVariantMap ScriptableProxy::getActionData(int id)
     INVOKE(getActionData, (id));
     m_actionData = m_wnd->actionData(id);
     m_actionId = id;
+    emit actionIdChanged(id);
 
     auto data = m_actionData;
     data.remove(mimeSelectedItems);
@@ -978,6 +950,15 @@ void ScriptableProxy::setClipboard(const QVariantMap &data, ClipboardMode mode)
     m_wnd->setClipboard(data, mode);
 }
 
+bool ScriptableProxy::registerClipboardProviderAction(int actionId, ClipboardMode mode)
+{
+    INVOKE(registerClipboardProviderAction, (actionId, mode));
+    const bool ok = m_wnd->registerClipboardProviderAction(actionId, mode);
+    if (ok)
+        emit clipboardProviderRegistered(m_clientSocketId, mode);
+    return ok;
+}
+
 QString ScriptableProxy::renameTab(const QString &arg1, const QString &arg2)
 {
     INVOKE(renameTab, (arg1, arg2));
@@ -1085,6 +1066,12 @@ void ScriptableProxy::showMessage(const MessageData &messageData)
     notification->setButtons(messageData.buttons.items);
     notification->setUrgency(messageData.urgency);
     notification->setPersistency(messageData.persistency);
+}
+
+QString ScriptableProxy::playSound(const QString &filePath, float volume)
+{
+    INVOKE(playSound, (filePath, volume));
+    return AudioPlayer::instance().play(filePath, volume);
 }
 
 QVariantMap ScriptableProxy::nextItem(const QString &tabName, int where)
@@ -1287,11 +1274,11 @@ QVariant ScriptableProxy::toggleConfig(const QString &optionName)
     QVariantList nameValue;
     nameValue.append(optionName);
     const auto values = m_wnd->config(nameValue);
-    if ( values.type() == QVariant::StringList )
+    if ( values.typeId() == QMetaType::QStringList )
         return values;
 
     const auto oldValue = values.toMap().constBegin().value();
-    if ( oldValue.type() != QVariant::Bool )
+    if ( oldValue.typeId() != QMetaType::Bool )
         return QVariant();
 
     const auto newValue = !QVariant(oldValue).toBool();
@@ -1775,7 +1762,8 @@ void ScriptableProxy::selectionSetItemsFormat(int id, const QString &mime, const
     INVOKE2(selectionSetItemsFormat, (id, mime, value));
 
     const auto selection = m_selections.value(id);
-    setItemsData(selection.browser, selection.indexes, mime, value);
+    if (selection.browser)
+        setItemsData(selection.browser, selection.indexes, mime, value);
 }
 
 void ScriptableProxy::selectionMove(int id, int row)
@@ -1959,8 +1947,8 @@ int ScriptableProxy::inputDialog(const NamedValueList &values)
     QObject::connect( buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject );
     dialog.layout()->addWidget(buttons);
 
-    installShortcutToCloseDialog(&dialog, &dialog, Qt::ControlModifier | Qt::Key_Enter);
-    installShortcutToCloseDialog(&dialog, &dialog, Qt::ControlModifier | Qt::Key_Return);
+    installShortcutToCloseDialog(&dialog, &dialog, QKeyCombination(Qt::ControlModifier, Qt::Key_Enter).toCombined());
+    installShortcutToCloseDialog(&dialog, &dialog, QKeyCombination(Qt::ControlModifier, Qt::Key_Return).toCombined());
 
     if (icon.isNull())
         icon = appIcon();
@@ -2137,24 +2125,6 @@ void ScriptableProxy::setPointerPosition(int x, int y)
     QScreen *screen = QGuiApplication::screenAt(pos);
     if (screen)
         QCursor::setPos(screen, pos);
-}
-
-QString ScriptableProxy::pluginsPath()
-{
-    INVOKE(pluginsPath, ());
-    return ::pluginsPath();
-}
-
-QString ScriptableProxy::themesPath()
-{
-    INVOKE(themesPath, ());
-    return ::themesPath();
-}
-
-QString ScriptableProxy::translationsPath()
-{
-    INVOKE(translationsPath, ());
-    return ::translationsPath();
 }
 
 QString ScriptableProxy::iconColor()
@@ -2410,6 +2380,122 @@ QStringList ScriptableProxy::styles()
     return QStyleFactory::keys();
 }
 
+QString ScriptableProxy::stats()
+{
+    INVOKE(stats, ());
+    QMap<QString, int> stats;
+    QSet<const QObject*> visited;
+    struct AddressObj {
+        QString address;
+        const QObject *obj;
+    };
+    QList<AddressObj> toVisit;
+    QStringList modelLines;
+    QStringList extraLines;
+
+    for (const QObject *obj : QApplication::topLevelWidgets())
+        toVisit.append(AddressObj{{}, obj});
+
+    toVisit.append(AddressObj{{}, qApp});
+
+    QObject *server = qApp->property("CopyQ_server").value<QObject*>();
+    if (server)
+        toVisit.append(AddressObj{{}, server});
+
+    while ( !toVisit.isEmpty() ) {
+        const AddressObj addressObj = toVisit.takeFirst();
+        if (visited.contains(addressObj.obj))
+            continue;
+
+        visited.insert(addressObj.obj);
+
+        const QString className = QString::fromUtf8(addressObj.obj->metaObject()->className());
+        stats[className] += 1;
+
+        const QString objectName = addressObj.obj->objectName();
+        if (!objectName.isEmpty())
+            stats["#" + objectName] += 1;
+
+        const auto normalizeName = [](const QString &name){
+            return QString(name).remove('_').remove('Q').toLower();
+        };
+        const QString segment =
+            (objectName.isEmpty() || objectName == className) ? className
+            : (className == QLatin1String("QWidget") || normalizeName(objectName).startsWith(normalizeName(className))) ? QStringLiteral("#%1").arg(objectName)
+            : QStringLiteral("%1#%2").arg(className, objectName);
+        const QString address = QStringLiteral("%1/%2").arg(addressObj.address, segment);
+        if (!addressObj.address.isEmpty())
+            stats[address] += 1;
+
+        if (auto *model = qobject_cast<const QAbstractItemModel*>(addressObj.obj)) {
+            QString modelLine = QStringLiteral("MODEL %1: rows=%2")
+                .arg(address).arg(model->rowCount());
+            if (auto *clipModel = dynamic_cast<const ClipboardModel*>(addressObj.obj)) {
+                qint64 dataSize = 0;
+                for (int i = 0; i < clipModel->rowCount(); ++i) {
+                    const QVariantMap itemData = clipModel->data(
+                        clipModel->index(i), contentType::data).toMap();
+                    dataSize += estimateDataSize(itemData);
+                }
+                modelLine += QStringLiteral(", dataSize=%1 (%2)")
+                    .arg(dataSize).arg(formatDataSize(dataSize));
+            }
+            modelLines.append(modelLine);
+        }
+
+        // Collect stats from any QObject exposing copyqStats property
+        const QVariant statsVar = addressObj.obj->property("copyqStats");
+        if (statsVar.isValid())
+            extraLines += statsVar.toStringList();
+
+        for (const QObject *obj : addressObj.obj->findChildren<QObject*>(QString(), Qt::FindDirectChildrenOnly))
+            toVisit.append(AddressObj{address, obj});
+    };
+
+    QStringList result;
+    result.reserve( stats.size() + 1 );
+    result.append( QStringLiteral("TOTAL: %1").arg(visited.size()) );
+    for (auto it = stats.constBegin(); it != stats.constEnd(); ++it) {
+        result += QStringLiteral("%1: %2").arg(it.key()).arg(it.value());
+    }
+    result += modelLines;
+
+    const QString dataPath = itemDataPath();
+    if (!dataPath.isEmpty()) {
+        qint64 dataDirSize = 0;
+        QDirIterator it(dataPath, QDir::Files, QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+            it.next();
+            dataDirSize += it.fileInfo().size();
+        }
+        result += QStringLiteral("DATA_DIR %1: size=%2 (%3)")
+            .arg(dataPath).arg(dataDirSize).arg(formatDataSize(dataDirSize));
+    }
+
+    result += extraLines;
+
+    // Log file total size
+    {
+        const QFileInfoList logFiles = logFileNames();
+        qint64 logSize = 0;
+        for (const auto &fi : logFiles)
+            logSize += fi.size();
+        result += QStringLiteral("LOG_FILES: count=%1, size=%2 (%3)")
+            .arg(logFiles.size()).arg(logSize).arg(formatDataSize(logSize));
+    }
+
+    // Process memory via platform interface
+    {
+        const qint64 rss = platformNativeInterface()->processResidentMemoryBytes(QCoreApplication::applicationPid());
+        if (rss >= 0) {
+            result += QStringLiteral("MEMORY: rss=%1 (%2)")
+                .arg(rss).arg(formatDataSize(rss));
+        }
+    }
+
+    return result.join("\n");
+}
+
 void ScriptableProxy::setScriptOverrides(const QVector<int> &overrides)
 {
     INVOKE2(setScriptOverrides, (overrides));
@@ -2570,25 +2656,6 @@ bool ScriptableProxy::getSelectionData()
     for (auto it = data.constBegin(); it != data.constEnd(); ++it)
         m_actionData[it.key()] = it.value();
     return true;
-}
-
-QString pluginsPath()
-{
-    QDir dir;
-    if (platformNativeInterface()->findPluginDir(&dir))
-        return dir.absolutePath();
-
-    return QString();
-}
-
-QString themesPath()
-{
-    return platformNativeInterface()->themePrefix();
-}
-
-QString translationsPath()
-{
-    return platformNativeInterface()->translationPrefix();
 }
 
 void setClipboardMonitorRunning(bool running)

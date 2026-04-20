@@ -26,9 +26,29 @@ The build requires:
 - `CMake <https://cmake.org/download/>`__
 - `Qt <https://download.qt.io/archive/qt/>`__
 
-Ubuntu
-^^^^^^
-On **Ubuntu** you can install all build dependencies with:
+Optional (enabled by default, disable with the corresponding CMake option):
+
+- `QCA <https://invent.kde.org/libraries/qca>`__ (Qt Cryptographic
+  Architecture) -- for tab encryption (``-DWITH_QCA_ENCRYPTION=OFF`` to
+  disable)
+- `QtKeychain <https://github.com/frankosterfeld/qtkeychain>`__ -- for storing
+  encryption passwords in the system keychain (``-DWITH_KEYCHAIN=OFF`` to
+  disable)
+- `KNotifications <https://invent.kde.org/frameworks/knotifications>`__ -- for
+  native notifications (``-DWITH_NATIVE_NOTIFICATIONS=OFF`` to disable)
+- `miniaudio <https://miniaud.io/>`__ -- for built-in audio playback
+  (``playSound``) (``-DWITH_AUDIO=OFF`` to disable)
+
+Conditional:
+
+- `ECM <https://invent.kde.org/frameworks/extra-cmake-modules>`__ (Extra CMake
+  Modules) -- for native notifications and Wayland clipboard support
+- `KGuiAddons <https://invent.kde.org/frameworks/kguiaddons>`__ -- for Wayland
+  clipboard support
+
+Debian / Ubuntu
+^^^^^^^^^^^^^^^
+On **Debian** and derivatives you can install all build dependencies with:
 
 ::
 
@@ -37,10 +57,7 @@ On **Ubuntu** you can install all build dependencies with:
       cmake \
       extra-cmake-modules \
       git \
-      libqca-qt6-2 \
-      libqca-qt6-dev \
-      libqca-qt6-plugins \
-      libqt6svg6 \
+      libminiaudio-dev \
       libqt6svg6-dev \
       libqt6waylandclient6 \
       libwayland-dev \
@@ -58,13 +75,21 @@ On **Ubuntu** you can install all build dependencies with:
       qt6-wayland-dev-tools \
       qtkeychain-qt6-dev
 
-On Ubuntu 25.04 and newer, you can also install `KF6` packages:
+
+On Debian 13 or Ubuntu 24.04 and newer, you can also install `QCA` packages:
 
 ::
 
     sudo apt install \
-      libkf6guiaddons \
-      libkf6guiaddons-dev \
+      libqca-qt6-dev \
+      libqca-qt6-plugins
+
+On Debian 13 or Ubuntu 25.04 and newer, you can also install `KF6` packages:
+
+::
+
+    sudo apt install \
+      libkf6guiaddons-dev
 
 Fedora / RHEL / CentOS
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -83,6 +108,7 @@ On **Fedora** and derivatives you can install all build dependencies with:
       libSM-devel \
       libXfixes-devel \
       libXtst-devel \
+      miniaudio-devel \
       qca-qt6-devel \
       qca-qt6-ossl \
       qt6-qtbase-devel \
@@ -94,6 +120,21 @@ On **Fedora** and derivatives you can install all build dependencies with:
       qtkeychain-qt6-devel \
       wayland-devel
 
+miniaudio (manual download)
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If your distribution does not package miniaudio, you can download the single
+header file directly into the source tree:
+
+::
+
+    curl -sSLo src/miniaudio.h \
+      https://raw.githubusercontent.com/mackron/miniaudio/0.11.25/miniaudio.h
+
+CMake will find it automatically.  Alternatively, place ``miniaudio.h`` anywhere
+and point CMake to it with ``-DMINIAUDIO_INCLUDE_DIR=/path/to/dir``.
+
+
 Build and Install
 -----------------
 
@@ -103,7 +144,9 @@ Build the source code with CMake and make or using an IDE of your choice (see ne
 
     cd CopyQ
     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local .
-    # Add -DWITH_NATIVE_NOTIFICATIONS=OFF for Ubuntu systems without `KF6` packages
+    # Add -DWITH_QCA_ENCRYPTION=OFF for systems without `QCA` packages
+    # Add -DWITH_NATIVE_NOTIFICATIONS=OFF for systems without `KF6` packages
+    # Add -DWITH_AUDIO=OFF to disable audio support (or if miniaudio is unavailable)
     make
     make install
 
@@ -164,16 +207,6 @@ Build with the following commands:
     cmake -DCMAKE_PREFIX_PATH="$(brew --prefix qt6)" .
     cmake --build .
     cpack
-
-To build with Qt 5 (make sure to install qt@5 yourself):
-
-::
-
-
-    cmake -DCMAKE_PREFIX_PATH="$(brew --prefix qt5)" -DWITH_QT6=OFF .
-    cmake --build .
-    cpack
-
 
 This will produce a self-contained application bundle ``CopyQ.app``
 which can then be copied or moved into ``/Applications``.

@@ -449,11 +449,7 @@ public:
     }
 
 protected:
-#if QT_VERSION >= QT_VERSION_CHECK(6,0,0)
     QVariant retrieveData(const QString &mimeType, QMetaType preferredType) const override
-#else
-    QVariant retrieveData(const QString &mimeType, QVariant::Type preferredType) const override
-#endif
     {
         Q_UNUSED(preferredType)
         if (!m_client)
@@ -646,8 +642,7 @@ void X11PlatformClipboard::setData(ClipboardMode mode, const QVariantMap &dataMa
             // See: https://invent.kde.org/frameworks/kguiaddons/-/merge_requests/184
             if (dataMap.contains(mimeTextUtf8))
                 data->setText(dataMap.value(mimeTextUtf8).toString());
-            else
-                KSystemClipboard::instance()->setMimeData(data, qmode);
+            KSystemClipboard::instance()->setMimeData(data, qmode);
         }
     }
 }

@@ -96,19 +96,35 @@ unlike in GUI, where row numbers start from 1 by default.
 
 .. js:function:: version()
 
-   Returns version string.
+   Returns versions, features and host system information.
 
-   :returns: Version string.
+   :returns: Versions, features and host system information
    :rtype: string
 
-   Example of the version string::
+   Example return value::
 
-       CopyQ Clipboard Manager v4.0.0-19-g93d95a7f
-       Qt: 5.15.2
-       KNotifications: 5.79.0
-       Compiler: GCC
+       CopyQ Clipboard Manager 14.0.0.14-g0e004828
        Arch: x86_64-little_endian-lp64
-       OS: Fedora 33 (Workstation Edition)
+       Audio: miniaudio 0.11.25
+       Compiler: GCC
+       DISPLAY: :0
+       KGuiAddons: 6.24.0
+       KNotifications: 6.24.0
+       KStatusNotifierItem: 6.24.0
+       OS: Fedora Linux 43 (Workstation Edition)
+       QCA: 2.3.10
+       Qt: 6.10.2
+       QtKeychain: 0.15.0
+       WAYLAND_DISPLAY: wayland-0
+       XDG_CURRENT_DESKTOP: KDE
+       XDG_SESSION_DESKTOP: KDE
+       XDG_SESSION_TYPE: wayland
+       has-audio: 1
+       has-encryption: 1
+       has-global-shortcuts: 1
+       has-keychain: 1
+       has-mouse-selection: 1
+       platform: Linux/X11
 
 .. js:function:: help()
 
@@ -264,7 +280,7 @@ unlike in GUI, where row numbers start from 1 by default.
 
 .. js:function:: selection([mimeType])
 
-   Same as :js:func:`clipboard` for `Linux mouse selection`_.
+   Same as :js:func:`clipboard` for `primary selection`_.
 
    :returns: Selection data.
    :rtype: :js:class:`ByteArray`
@@ -278,7 +294,7 @@ unlike in GUI, where row numbers start from 1 by default.
 
 .. js:function:: hasSelectionFormat(mimeType)
 
-   Same as :js:func:`hasClipboardFormat` for `Linux mouse selection`_.
+   Same as :js:func:`hasClipboardFormat` for `primary selection`_.
 
    :returns: ``true`` if selection contains the format, otherwise ``false``.
    :rtype: bool
@@ -288,7 +304,7 @@ unlike in GUI, where row numbers start from 1 by default.
    Returns true only in automatic command triggered by clipboard change.
 
    This can be used to check if current automatic command was triggered by
-   clipboard and not `Linux mouse selection`_ change.
+   clipboard and not `primary selection`_ change.
 
    :returns: ``true`` if current automatic command is triggered by clipboard
              change, otherwise ``false``.
@@ -363,22 +379,25 @@ unlike in GUI, where row numbers start from 1 by default.
 
 .. js:function:: copySelection(text)
 
-   Equivalent to the ``copy`` function with the same arguments, but for `Linux
-   mouse selection`_.
+   Sets primary selection plain text.
+
+   Equivalent to ``copy(text)`` but for `primary selection`_.
 
    :throws Error: Thrown if selection fails to be set.
 
 .. js:function:: /*data*/ copySelection(mimeType, data, [mimeType, data]...)
 
-   Equivalent to the ``copy`` function with the same arguments, but for `Linux
-   mouse selection`_.
+   Sets primary selection data.
+
+   Equivalent to ``copy(mimeType, data, ...)`` but for `primary selection`_.
 
    :throws Error: Thrown if selection fails to be set.
 
 .. js:function:: /*item*/ copySelection(Item)
 
-   Equivalent to the ``copy`` function with the same arguments, but for `Linux
-   mouse selection`_.
+   Sets primary selection from an item.
+
+   Equivalent to ``copy(Item)`` but for `primary selection`_.
 
    :throws Error: Thrown if selection fails to be set.
 
@@ -721,7 +740,15 @@ unlike in GUI, where row numbers start from 1 by default.
 
 .. js:function:: info([pathName])
 
-   Returns paths and flags used by the application.
+   Returns diagnostic info: versions, features, platform, environment variables
+   and common paths.
+
+   On Linux, also includes environment variables: ``DISPLAY``,
+   ``WAYLAND_DISPLAY``, ``XDG_CURRENT_DESKTOP``, ``XDG_SESSION_DESKTOP``,
+   ``XDG_SESSION_TYPE``.
+
+   When called without arguments, non-path entries are listed first,
+   followed by paths at the end.
 
    :returns: Path for given identifier.
    :rtype: string
@@ -731,7 +758,6 @@ unlike in GUI, where row numbers start from 1 by default.
    .. code-block:: js
 
        info('config')
-
 .. js:function:: eval(script)
 
    Evaluates script and returns result.
@@ -1091,6 +1117,41 @@ unlike in GUI, where row numbers start from 1 by default.
                function(lines) { add.apply(this, lines) })
 
    Returns object for the finished command or ``undefined`` on failure.
+
+.. js:function:: playSound(fileOrObject)
+
+   Plays audio file.
+
+   The argument can be a file path string or an object with ``file`` and
+   optional ``volume`` properties.
+
+   Supports WAV, MP3 and FLAC formats. The function starts playback and
+   returns immediately.
+
+   An exception is thrown if the file doesn't exist or cannot be played.
+
+   Requires the application to be built with audio capabilities. You can verify
+   this with ``info('has-audio')``.
+
+   :param fileOrObject: Path to the audio file, or an object
+       ``{file: 'path', volume: 50}``.
+   :type fileOrObject: string or object
+
+   The ``volume`` property is a percentage (default ``100``). Values above
+   ``100`` amplify the sound; the maximum is ``200``.
+
+   Example --- play a notification sound:
+
+   .. code-block:: js
+
+       playSound('/path/to/notification.wav')
+
+   Example --- play at 50% volume:
+
+   .. code-block:: js
+
+       playSound({file: '/path/to/notification.wav', volume: 50})
+
 
 .. js:function:: String currentWindowTitle()
 
@@ -1497,7 +1558,7 @@ unlike in GUI, where row numbers start from 1 by default.
 
 .. js:function:: onClipboardChanged()
 
-   Called when clipboard or `Linux mouse selection`_ changes and is not set by
+   Called when clipboard or `primary selection`_ changes and is not set by
    CopyQ, is not marked as hidden nor secret (see the other callbacks).
 
    Default implementation is:
@@ -1515,7 +1576,7 @@ unlike in GUI, where row numbers start from 1 by default.
 
 .. js:function:: onOwnClipboardChanged()
 
-   Called when clipboard or `Linux mouse selection`_ is set by CopyQ and is not
+   Called when clipboard or `primary selection`_ is set by CopyQ and is not
    marked as hidden nor secret (see the other callbacks).
 
    Owned clipboard data contains :js:data:`mimeOwner` format.
@@ -1524,7 +1585,7 @@ unlike in GUI, where row numbers start from 1 by default.
 
 .. js:function:: onHiddenClipboardChanged()
 
-   Called when clipboard or `Linux mouse selection`_ changes and is marked as
+   Called when clipboard or `primary selection`_ changes and is marked as
    hidden but not secret (see the other callbacks).
 
    Hidden clipboard data contains :js:data:`mimeHidden` format set to ``1``.
@@ -1533,7 +1594,7 @@ unlike in GUI, where row numbers start from 1 by default.
 
 .. js:function:: onSecretClipboardChanged()
 
-   Called if the clipboard or `Linux mouse selection`_ changes and contains a
+   Called if the clipboard or `primary selection`_ changes and contains a
    password or other secret (for example, copied from clipboard manager).
 
    The default implementation clears all data, so they are not accessible using
@@ -1548,7 +1609,7 @@ unlike in GUI, where row numbers start from 1 by default.
 
 .. js:function:: onClipboardUnchanged()
 
-   Called when clipboard or `Linux mouse selection`_ changes but data remained the same.
+   Called when clipboard or `primary selection`_ changes but data remained the same.
 
    Default implementation does nothing.
 
@@ -1610,7 +1671,7 @@ unlike in GUI, where row numbers start from 1 by default.
 
 .. js:function:: synchronizeToSelection(text)
 
-   Synchronize current data from clipboard to `Linux mouse selection`_.
+   Synchronize current data from clipboard to `primary selection`_.
 
    Called automatically from clipboard monitor process if option
    ``copy_clipboard`` is enabled.
@@ -1619,7 +1680,7 @@ unlike in GUI, where row numbers start from 1 by default.
 
 .. js:function:: synchronizeFromSelection(text)
 
-   Synchronize current data from `Linux mouse selection`_ to clipboard.
+   Synchronize current data from `primary selection`_ to clipboard.
 
    Called automatically from clipboard monitor process if option
    ``copy_selection`` is enabled.
@@ -1636,7 +1697,7 @@ unlike in GUI, where row numbers start from 1 by default.
 
 .. js:function:: provideSelection()
 
-   Starts a process that provides a data for `Linux mouse selection`_.
+   Starts a process that provides a data for `primary selection`_.
 
    The data can be set using :js:func:`setData`.
 
@@ -1713,6 +1774,29 @@ unlike in GUI, where row numbers start from 1 by default.
    .. code-block:: js
 
        config("style", styleName)
+
+.. js:function:: stats()
+
+   Get runtime diagnostics and statistics about the application state.
+
+   Reports QObject tree class/name counts, clipboard model row counts
+   and data sizes, item data directory size on disk, tab load state,
+   running actions, command counts by type, loaded plugins with
+   enabled/disabled state, log file sizes, and process memory usage.
+
+   :returns: Multi-line string with statistics including:
+      ``#ObjectName: COUNT`` for QObject instances with object name,
+      ``/Path/To#The/#Object: COUNT`` for QObject instances with specific path,
+      ``TYPE: COUNT`` for QObject instances of specific type/class,
+      ``MODEL path: rows=N, dataSize=B (human)`` for item models,
+      ``DATA_DIR path: size=B (human)`` for the item data directory,
+      ``TABS: total=N, loaded=N`` for tab load state,
+      ``ACTION description | pid=P rss=B (human), ...`` for each running action with per-sub-process memory,
+      ``COMMANDS: automatic=N, display=N, menu=N, tray_menu=N, script=N`` for command counts,
+      ``PLUGIN id: enabled/disabled`` for each loaded plugin,
+      ``LOG_FILES: count=N, size=B (human)`` for log file total size,
+      ``MEMORY: rss=B (human)`` for process resident memory (platform-dependent).
+   :rtype: string
 
 .. js:function:: onItemsAdded()
 
@@ -2291,7 +2375,7 @@ These MIME types values are assigned to global variables prefixed with
 
 .. js:data:: mimeClipboardMode
 
-   Contains ``selection`` if data is from `Linux mouse selection`_. Value: 'application/x-copyq-clipboard-mode'.
+   Contains ``selection`` if data is from `primary selection`_. Value: 'application/x-copyq-clipboard-mode'.
 
 .. js:data:: mimeCurrentTab
 
@@ -2397,17 +2481,56 @@ for item data. For example ``selectedItems()`` returning ``[0,1]`` will return
 If tab is renamed, all references to current and selected items are invalidated
 because the tab data need to be initiated again.
 
-Linux Mouse Selection
----------------------
+Primary Selection
+-----------------
 
-In many application on Linux, if you select a text with mouse, it's possible to
-paste it with middle mouse button.
+On many Linux and BSD desktop environments, selecting text with the mouse
+places it in the *primary selection*, which can be pasted with a middle mouse
+button click. This is separate from the regular clipboard used by copy/paste
+shortcuts.
 
-The text is stored separately from normal clipboard content.
+CopyQ supports reading and writing the primary selection on platforms that
+provide it (X11 and Wayland). On Wayland, support depends on the compositor
+and the `KGuiAddons <https://invent.kde.org/frameworks/kguiaddons>`_ library;
+notably, GNOME does not support it natively, but CopyQ 14.0.0 and later work
+around this via the bundled *CopyQ Clipboard Monitor* GNOME extension.
 
-On non-Linux system, functions that support mouse selection will do nothing
+On unsupported platforms, functions that use the primary selection do nothing
 (for example :js:func:`copySelection`) or return ``undefined`` (in case of
 :js:func:`selection`).
+
+CopyQ can synchronize the clipboard with the primary selection. This can be
+enabled in Preferences on the General tab under *Clipboard Manipulation*, or
+from the command line:
+
+.. code-block:: js
+
+   config('copy_clipboard', 'true')  // clipboard to primary selection
+   config('copy_selection', 'true')  // primary selection to clipboard
+
+For synchronization, CopyQ runs a helper process (for example
+``copyq --clipboard-access synchronizeToSelection``). Running helpers can be
+inspected from *File — Process Manager*.
+
+Custom automatic commands run on primary selection changes by default. This
+can be disabled in the *Clipboard Manipulation* section or from the command
+line:
+
+.. code-block:: js
+
+   config('run_selection', 'false')
+
+CopyQ can also store primary selection data automatically. Enable it in the
+*Clipboard Manipulation* section or from the command line:
+
+.. code-block:: js
+
+   config('check_selection', 'true')
+
+See also:
+
+- `QClipboard — Notes for X11 Users <https://doc.qt.io/qt-6/qclipboard.html#notes-for-x11-users>`_
+- `freedesktop.org Clipboards Wiki <https://www.freedesktop.org/wiki/Specifications/ClipboardsWiki/>`_
 
 Plugins
 -------

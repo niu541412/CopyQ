@@ -13,6 +13,7 @@ default_wayland_tests=(
     clipboardToItem
     itemToClipboard
     avoidStoringPasswords
+    trayShowHideAction
 )
 
 kwin_wayland --virtual --socket=copyq-wayland &
@@ -28,7 +29,7 @@ export QT_QPA_PLATFORM=wayland
 # Smoke test the default session
 for i in {1..5}; do
     echo "Trying to start CopyQ server ($i)"
-    if ./copyq --start-server exit; then
+    if "${COPYQ_TESTS_EXECUTABLE:-./copyq}" --start-server exit; then
         break
     elif [[ $i == 5 ]]; then
         echo "❌ FAILED: Could not start CopyQ server"

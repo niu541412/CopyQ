@@ -11,6 +11,7 @@
 #include "common/log.h"
 #include "common/mimetypes.h"
 #include "common/textdata.h"
+#include "platform/platformnativeinterface.h"
 #include "gui/actionhandlerdialog.h"
 #include "gui/icons.h"
 #include "gui/notification.h"
@@ -19,6 +20,7 @@
 #include "item/serialize.h"
 
 #include <QDialog>
+#include <QTimer>
 
 #include <cmath>
 
@@ -35,10 +37,36 @@ QString actionDescription(const Action &action)
 
 } // namespace
 
+QStringList ActionHandler::copyqStats() const
+{
+    QStringList lines;
+    for (auto it = m_actions.constBegin(); it != m_actions.constEnd(); ++it) {
+        constexpr int maxDescriptionLength = 150;
+        QString desc = actionDescription(*it.value()).simplified();
+        desc.replace(QLatin1Char('\''), QLatin1Char('"'));
+        if (desc.size() > maxDescriptionLength)
+            desc = desc.left(maxDescriptionLength) + QStringLiteral("...");
+
+        const QList<qint64> pids = it.value()->processIds();
+        QStringList pidParts;
+        for (const qint64 pid : pids) {
+            const qint64 rss = platformNativeInterface()->processResidentMemoryBytes(pid);
+            if (rss >= 0) {
+                pidParts.append(QStringLiteral("pid=%1 rss=%2 (%3)")
+                    .arg(pid).arg(rss).arg(formatDataSize(rss)));
+            } else {
+                pidParts.append(QStringLiteral("pid=%1").arg(pid));
+            }
+        }
+        lines.append( QStringLiteral("ACTION '%1' | %2").arg(desc, pidParts.join(QStringLiteral(", "))) );
+    }
+    return lines;
+}
+
 ActionHandler::ActionHandler(NotificationDaemon *notificationDaemon, QObject *parent)
     : QObject(parent)
     , m_notificationDaemon(notificationDaemon)
-    , m_actionModel(new ActionTableModel(parent))
+    , m_actionModel(new ActionTableModel(this))
 {
 }
 
@@ -104,8 +132,19 @@ void ActionHandler::action(Action *action)
 void ActionHandler::terminateAction(int id)
 {
     Action *action = m_actions.value(id);
-    if (action)
-        action->terminate();
+    if (!action || !action->isRunning())
+        return;
+
+    action->requestTerminate();
+    const int terminateTimeout =
+        AppConfig().option<Config::terminate_action_timeout_ms>();
+    QTimer::singleShot(terminateTimeout, action, &Action::requestKill);
+}
+
+Action *ActionHandler::findAction(int id) const
+{
+    auto it = m_actions.find(id);
+    return it != m_actions.end() ? it.value() : nullptr;
 }
 
 void ActionHandler::closeAction(Action *action)
@@ -161,10 +200,9 @@ void ActionHandler::showActionErrors(Action *action, const QString &message, ush
 
     const int maxWidthPoints =
             AppConfig().option<Config::notification_maximum_width>();
-    const QString command = action->commandLine()
-            .replace(QLatin1String("copyq eval --"), QLatin1String("copyq:"));
+    const QString command = action->commandLine();
     const QString name = action->name().isEmpty()
-            ? QString(command).replace('\n', QLatin1String(" "))
+            ? command.simplified()
             : action->name();
     const QString format = tr("Command %1").arg(quoteString("%1"));
     const QString title = elideText(name, QFont(), format, pointsToPixels(maxWidthPoints));
@@ -176,7 +214,9 @@ void ActionHandler::showActionErrors(Action *action, const QString &message, ush
     for (const auto &line : lines)
         msg.append(QStringLiteral("\n%1. %2").arg(++lineNumber, lineNumberWidth).arg(line));
 
-    log(QStringLiteral("%1\n%2").arg(title, msg));
+    auto logMsg = QStringLiteral("%1: %2").arg(title, msg);
+    logMsg.replace(QLatin1Char('\n'), QLatin1String(" | "));
+    log(logMsg, LogWarning);
 
     auto notification = m_notificationDaemon->createNotification(notificationId);
     notification->setTitle(title);

@@ -37,6 +37,7 @@ using ItemLoaderList = QList<ItemLoaderPtr>;
 class ItemFactory final : public QObject
 {
     Q_OBJECT
+    Q_PROPERTY(QStringList copyqStats READ copyqStats CONSTANT)
 
 public:
     /**
@@ -85,6 +86,8 @@ public:
      */
     bool hasLoaders() const { return !m_loaders.isEmpty(); }
 
+    QStringList copyqStats() const;
+
     /**
      * Load items using a plugin.
      * @return the first plugin (or nullptr) for which ItemLoaderInterface::loadItems() returned true
@@ -95,7 +98,7 @@ public:
      * Initialize tab.
      * @return the first plugin (or nullptr) for which ItemLoaderInterface::initializeTab() returned true
      */
-    ItemSaverPtr initializeTab(const QString &tabName, QAbstractItemModel *model, int maxItems);
+    ItemSaverPtr initializeTab(const QString &tabName, QAbstractItemModel *model, int maxItems) const;
 
     /**
      * Return true only if any plugin (ItemLoaderInterface::matches()) returns true;

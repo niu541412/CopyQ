@@ -12,16 +12,30 @@
 #include <QClipboard>
 #include <QMimeData>
 
-#if QT_VERSION >= QT_VERSION_CHECK(6,0,0)
-#   include <QStringEncoder>
-#else
-#   include <QTextCodec>
-#endif
+#include <QStringEncoder>
 
 #include "mactimer.h"
 
 #include <Cocoa/Cocoa.h>
 #include <Carbon/Carbon.h>
+
+namespace {
+
+int clipboardMonitorIntervalMs()
+{
+    bool ok = false;
+    const int ms = qEnvironmentVariableIntValue("COPYQ_CLIPBOARD_MONITOR_INTERVAL_MS", &ok);
+    return (ok && ms > 0) ? ms : 500;
+}
+
+int clipboardMonitorToleranceMs()
+{
+    bool ok = false;
+    const int ms = qEnvironmentVariableIntValue("COPYQ_CLIPBOARD_MONITOR_TOLERANCE_MS", &ok);
+    return (ok && ms >= 0) ? ms : 5000;
+}
+
+} // namespace
 
 void MacClipboard::startMonitoringBackend(const QStringList &formats, ClipboardModeMask modes)
 {
@@ -29,8 +43,8 @@ void MacClipboard::startMonitoringBackend(const QStringList &formats, ClipboardM
     m_prevChangeCount = [pasteboard changeCount];
 
     m_timer = new MacTimer(this);
-    m_timer->setInterval(250);
-    m_timer->setTolerance(500);
+    m_timer->setInterval(clipboardMonitorIntervalMs());
+    m_timer->setTolerance(clipboardMonitorToleranceMs());
     connect(m_timer, &MacTimer::timeout, this, &MacClipboard::clipboardTimeout);
     m_timer->start();
 
@@ -56,18 +70,9 @@ void MacClipboard::setData(ClipboardMode mode, const QVariantMap &dataMap)
     // This converts text to UTF-16 without BOM.
     const auto text = getTextData(dataMap);
     if ( !text.isEmpty() ) {
-#if QT_VERSION >= QT_VERSION_CHECK(6,0,0)
         auto encoder = QStringEncoder(QStringConverter::Utf16);
         const QByteArray data = encoder.encode(text);
         dataMapForMac[QStringLiteral("public.utf16-plain-text")] = data;
-#else
-        auto codec = QTextCodec::codecForName(QStringLiteral("UTF-16"));
-        Q_ASSERT(codec != nullptr);
-        if (codec) {
-            auto encoder = codec->makeEncoder(QTextCodec::IgnoreHeader);
-            dataMapForMac[QStringLiteral("public.utf16-plain-text")] = encoder->fromUnicode(text);
-        }
-#endif
     }
 
     DummyClipboard::setData(mode, dataMapForMac);
@@ -95,5 +100,8 @@ void MacClipboard::onChanged(int mode)
 }
 
 void MacClipboard::clipboardTimeout() {
+    m_timer->stop();
     onChanged(QClipboard::Clipboard);
+    if (m_timer)
+        m_timer->start();
 }

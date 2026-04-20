@@ -5,6 +5,7 @@
 
 #include "common/clipboardmode.h"
 #include "common/command.h"
+#include "common/clientsocket.h"
 #include "gui/clipboardbrowser.h"
 #include "gui/notificationbutton.h"
 #include "gui/notification.h"
@@ -69,10 +70,6 @@ Q_DECLARE_METATYPE(VariantMapList)
 Q_DECLARE_METATYPE(KeyboardModifierList)
 Q_DECLARE_METATYPE(MessageData)
 
-#if QT_VERSION < QT_VERSION_CHECK(6,0,0)
-Q_DECLARE_METATYPE(ClipboardMode)
-#endif
-
 QDataStream &operator<<(QDataStream &out, const NotificationButtonList &list);
 QDataStream &operator>>(QDataStream &in, NotificationButtonList &list);
 QDataStream &operator<<(QDataStream &out, const NamedValueList &list);
@@ -96,6 +93,8 @@ public:
     void callFunction(const QByteArray &serializedFunctionCall);
 
     int actionId() const { return m_actionId; }
+    ClientSocketId clientSocketId() const { return m_clientSocketId; }
+    void setClientSocketId(ClientSocketId id) { m_clientSocketId = id; }
 
     void setFunctionCallReturnValue(const QByteArray &bytes);
     void setInputDialogResult(const QByteArray &bytes);
@@ -125,6 +124,7 @@ public slots:
     bool preview(const QVariant &arg);
     void disableMonitoring(bool arg1);
     void setClipboard(const QVariantMap &data, ClipboardMode mode);
+    bool registerClipboardProviderAction(int actionId, ClipboardMode mode);
 
     QString renameTab(const QString &arg1, const QString &arg2);
 
@@ -144,6 +144,8 @@ public slots:
     void runInternalAction(const QVariantMap &data, const QString &command);
 
     void showMessage(const MessageData &messageData);
+
+    QString playSound(const QString &filePath, float volume);
 
     QVariantMap nextItem(const QString &tabName, int where);
     void browserMoveToClipboard(const QString &tabName, int row);
@@ -250,10 +252,6 @@ public slots:
     QPoint pointerPosition();
     void setPointerPosition(int x, int y);
 
-    QString pluginsPath();
-    QString themesPath();
-    QString translationsPath();
-
     QString iconColor();
     bool setIconColor(const QString &name);
 
@@ -286,6 +284,8 @@ public slots:
 
     QStringList styles();
 
+    QString stats();
+
     void setScriptOverrides(const QVector<int> &overrides);
 
 signals:
@@ -293,6 +293,8 @@ signals:
     void inputDialogFinished(int dialogId, const NamedValueList &result);
     void sendMessage(const QByteArray &message, int messageCode);
     void abortEvaluationRequest();
+    void actionIdChanged(int actionId);
+    void clipboardProviderRegistered(ClientSocketId clientId, ClipboardMode mode);
 
 private:
     ClipboardBrowser *fetchBrowser(const QString &tabName);
@@ -334,11 +336,8 @@ private:
     QMap<int, ItemSelection> m_selections;
 
     bool m_disconnected = false;
+    ClientSocketId m_clientSocketId = 0;
 };
-
-QString pluginsPath();
-QString themesPath();
-QString translationsPath();
 
 void setClipboardMonitorRunning(bool running);
 bool isClipboardMonitorRunning();

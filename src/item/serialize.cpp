@@ -198,11 +198,7 @@ QString decompressMime(QDataStream *out)
         return QString();
 
     bool ok;
-#if QT_VERSION < QT_VERSION_CHECK(6,0,0)
-    const int id = mime.midRef(0, 1).toInt(&ok, 16);
-#else
     const int id = QStringView(mime).mid(0, 1).toInt(&ok, 16);
-#endif
     if (!ok) {
         qCCritical(serializeCategory) << "Corrupted data: Failed to parse MIME type ID";
         out->setStatus(QDataStream::ReadCorruptData);
@@ -477,11 +473,7 @@ void registerDataFileConverter()
 {
     QMetaType::registerConverter(&DataFile::readAll);
     QMetaType::registerConverter(&DataFile::toString);
-#if QT_VERSION < QT_VERSION_CHECK(6,0,0)
-    qRegisterMetaTypeStreamOperators<DataFile>("DataFile");
-#else
     qRegisterMetaType<DataFile>("DataFile");
-#endif
 }
 
 void serializeData(QDataStream *stream, const QVariantMap &data, int itemDataThreshold, const Encryption::EncryptionKey *encryptionKey)
@@ -783,4 +775,20 @@ bool itemDataFiles(QIODevice *file, QStringList *files, const Encryption::Encryp
 QString itemDataPath()
 {
     return qApp->property("CopyQ_item_data_path").toString();
+}
+
+qint64 estimateDataSize(const QVariantMap &data)
+{
+    qint64 totalSize = 0;
+    for (auto it = data.constBegin(); it != data.constEnd(); ++it) {
+        totalSize += it.key().size() * 2; // QString is UTF-16
+        const QVariant &value = it.value();
+        const DataFile dataFile = value.value<DataFile>();
+        if (!dataFile.path().isEmpty()) {
+            totalSize += dataFile.size(); // QFileInfo::size(), no data load
+        } else {
+            totalSize += value.toByteArray().size();
+        }
+    }
+    return totalSize;
 }
