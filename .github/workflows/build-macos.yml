@@ -4,8 +4,10 @@ name: macOS
 on:
   push:
     branches: [master]
+    tags: ['v*']
   pull_request:
     branches: [master]
+
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -13,6 +15,8 @@ concurrency:
 
 jobs:
   build:
+    permissions:
+      contents: read
     name: ${{matrix.buildname}}
     runs-on: ${{matrix.os}}
     strategy:
@@ -40,12 +44,17 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5
         with:
           submodules: false
-          fetch-depth: 1
+          # Full commit history needed for sortable version string (git describe in CMake).
+          # Blobless filter skips file content for historical commits to speed up clone.
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
 
       - name: Enable ccache
-        uses: hendrikmuhs/ccache-action@5ebbd400eff9e74630f759d94ddd7b6c26299639 # v1.2
+        uses: hendrikmuhs/ccache-action@33522472633dbd32578e909b315f5ee43ba878ce # v1.2.22
         with:
           key: ${{ github.job }}-${{ matrix.os }}
+          max-size: 1G
 
       - name: Set up ccache
         run: |
@@ -70,8 +79,11 @@ jobs:
           HOMEBREW_NO_INSTALL_CLEANUP: 1
         run: '${{github.workspace}}/utils/github/install-macos.sh'
 
+      - name: Download miniaudio
+        uses: ./.github/actions/download-miniaudio
+
       - name: Build with CMake
-        uses: lukka/run-cmake@af1be47fd7c933593f687731bc6fdbee024d3ff4 # v10
+        uses: lukka/run-cmake@5d55ea7949e25f69f0ecb516d8d572297e03a956 # v10
         with:
           configurePreset: '${{ matrix.cmake_preset }}'
           buildPreset: '${{ matrix.cmake_preset }}'
@@ -80,24 +92,34 @@ jobs:
       - name: Create gnupg directory for tests
         run: mkdir -p ~/.gnupg && chmod go-rwx ~/.gnupg
 
+      - name: Get version string
+        id: version
+        uses: ./.github/actions/get-version
+        with:
+          build_dir: ${{ github.workspace }}/build/copyq/${{ matrix.cmake_preset }}
+
       - name: Create macOS bundle
-        working-directory: '${{runner.workspace}}/build/copyq/${{ matrix.cmake_preset }}'
+        working-directory: '${{github.workspace}}/build/copyq/${{ matrix.cmake_preset }}'
         # Retry cpack due to frequent errors: "hdiutil: create failed - Resource busy"
-        run: cpack || cpack || cpack && mv -v copyq-*.dmg CopyQ.dmg
+        run: (cpack || cpack || cpack) && mv -v copyq-*.dmg "CopyQ-${APP_VERSION}${BUNDLE_SUFFIX}.dmg"
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
+          BUNDLE_SUFFIX: ${{ matrix.bundle_suffix }}
 
       - name: Upload macOS bundle
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: 'CopyQ${{ matrix.bundle_suffix }}.dmg'
-          path: '${{runner.workspace}}/build/copyq/${{ matrix.cmake_preset }}/CopyQ.dmg'
+          name: 'CopyQ-${{ steps.version.outputs.version }}${{ matrix.bundle_suffix }}.dmg'
+          path: '${{github.workspace}}/build/copyq/${{ matrix.cmake_preset }}/CopyQ-${{ steps.version.outputs.version }}${{ matrix.bundle_suffix }}.dmg'
+          archive: false
 
       - name: Test
-        working-directory: '${{runner.workspace}}/build/copyq/${{ matrix.cmake_preset }}'
+        working-directory: '${{github.workspace}}/build/copyq/${{ matrix.cmake_preset }}'
         run: '${{github.workspace}}/utils/github/test-macos.sh'
 
       - name: Upload crash reports
         if: failure()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: 'crash-reports${{ matrix.bundle_suffix }}'
           path: '~/Library/Logs/DiagnosticReports/*'
