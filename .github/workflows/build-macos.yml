@@ -13,6 +13,13 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  KF_VERSION: '6.23'
+  KF_PATCH: '0'
+  KF_BRANCH: stable
+  QCA_VERSION: '2.3.10'
+  QTKEYCHAIN_VERSION: '0.15.0'
+
 jobs:
   build:
     permissions:
@@ -77,7 +84,43 @@ jobs:
           HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: 1
           HOMEBREW_NO_AUTO_UPDATE: 1
           HOMEBREW_NO_INSTALL_CLEANUP: 1
-        run: '${{github.workspace}}/utils/github/install-macos.sh'
+        run: '${{github.workspace}}/utils/github/install-qt.sh'
+
+
+      - name: Set up dependency paths
+        run: |
+          DEPS_PREFIX=$GITHUB_WORKSPACE/deps/install
+          # install-qt-action sets QT_ROOT_DIR but may not set CMAKE_PREFIX_PATH.
+          echo "DEPS_PREFIX=$DEPS_PREFIX" >> "$GITHUB_ENV"
+          echo "CMAKE_PREFIX_PATH=${DEPS_PREFIX};${QT_ROOT_DIR}" >> "$GITHUB_ENV"
+
+      - name: Restore cached dependencies
+        id: cache-deps
+        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ${{ github.workspace }}/deps/install
+          key: >-
+            macos-deps-kf${{ env.KF_VERSION }}.${{ env.KF_PATCH
+            }}-qca${{ env.QCA_VERSION
+            }}-qtkeychain${{ env.QTKEYCHAIN_VERSION
+            }}-${{ runner.arch
+            }}-${{ hashFiles('utils/patches/**') }}
+
+      - name: Build dependencies
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: '${{ github.workspace }}/utils/github/build-macos-deps.sh'
+
+      - name: Save dependency cache
+        if: github.event_name == 'push'
+        uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ${{ github.workspace }}/deps/install
+          key: >-
+            macos-deps-kf${{ env.KF_VERSION }}.${{ env.KF_PATCH
+            }}-qca${{ env.QCA_VERSION
+            }}-qtkeychain${{ env.QTKEYCHAIN_VERSION
+            }}-${{ runner.arch
+            }}-${{ hashFiles('utils/patches/**') }}
 
       - name: Download miniaudio
         uses: ./.github/actions/download-miniaudio
@@ -87,7 +130,6 @@ jobs:
         with:
           configurePreset: '${{ matrix.cmake_preset }}'
           buildPreset: '${{ matrix.cmake_preset }}'
-          packagePreset: '${{ matrix.cmake_preset }}'
 
       - name: Create gnupg directory for tests
         run: mkdir -p ~/.gnupg && chmod go-rwx ~/.gnupg
