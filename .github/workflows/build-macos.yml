@@ -14,7 +14,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  QT_VERSION: '6.10.2'
   KF_VERSION: '6.23'
   KF_PATCH: '0'
   KF_BRANCH: stable
@@ -33,13 +32,18 @@ jobs:
       matrix:
         include:
           - os: macos-15-intel
-            buildname: macOS 13
-            bundle_suffix: '-macos-13'
+            buildname: macOS old
+            bundle_suffix: '-macos-x86_64_macOS12'
+            cmake_preset: macOS-10
+
+          - os: macos-15-intel
+            buildname: macOS x86_64
+            bundle_suffix: '-macos-x86_64'
             cmake_preset: macOS-13
 
           - os: macos-14
-            buildname: macOS 12 M1
-            bundle_suffix: '-macos-12-m1'
+            buildname: macOS arm64
+            bundle_suffix: '-macos-arm64'
             cmake_preset: macOS-12-m1
 
     steps:
@@ -63,13 +67,30 @@ jobs:
         run: |
           export PATH="/usr/lib/ccache:/usr/local/opt/ccache/libexec:$PATH"
 
+<<<<<<< temp
       - name: Install Qt
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4
+=======
+      - name: Download qtbase bottle
+        if: matrix.buildname == 'macOS old'
+        uses: dsaltares/fetch-gh-release-asset@master
+>>>>>>> master
         with:
-          version: ${{ env.QT_VERSION }}
-          modules: qtimageformats qt5compat
-          cache: true
-          set-env: true
+          repo: ${{ github.repository_owner }}/brew_qt_macos12
+          version: tags/nightly
+          regex: true
+          file: "qtbase--.*\\.bottle\\.tar\\.gz"
+          target: "./"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        env:
+          BUILDNAME: ${{ matrix.buildname }}
+          HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: 1
+          HOMEBREW_NO_AUTO_UPDATE: 1
+          HOMEBREW_NO_INSTALL_CLEANUP: 1
+        run: '${{github.workspace}}/utils/github/install-qt.sh'
+
 
       - name: Set up dependency paths
         run: |
@@ -92,6 +113,8 @@ jobs:
 
       - name: Build dependencies
         if: steps.cache-deps.outputs.cache-hit != 'true'
+        env:
+          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.buildname == 'macOS old' && '12.0' || '' }}
         run: '${{ github.workspace }}/utils/github/build-macos-deps.sh'
 
       - name: Save dependency cache
@@ -150,22 +173,3 @@ jobs:
           name: 'crash-reports${{ matrix.bundle_suffix }}'
           path: '~/Library/Logs/DiagnosticReports/*'
           if-no-files-found: ignore
-
-
-  release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-
-      - name: Upload to release
-        run: |
-          gh release create "$GITHUB_REF_NAME" --draft --notes "" 2>/dev/null || true
-          gh release upload "$GITHUB_REF_NAME" CopyQ-*/*.dmg --clobber
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
