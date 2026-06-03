@@ -24,6 +24,8 @@ jobs:
   build:
     permissions:
       contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     name: ${{matrix.buildname}}
     runs-on: ${{matrix.os}}
     strategy:
