@@ -268,7 +268,7 @@ void CoreTests::action()
 {
     const Args args = Args("tab") << testTab(1);
     const Args argsAction = Args(args) << "action";
-    const QString action = QString::fromLatin1("copyq %1 %2").arg(args.join(" "));
+    const auto action = QString::fromLatin1("copyq %1 %2").arg(args.join(" "));
 
     // action with size
     RUN(argsAction << action.arg("size") << "", "");
@@ -370,6 +370,10 @@ void CoreTests::importExportTab()
     struct CurrentDirectoryGuard {
         CurrentDirectoryGuard() : oldDir(QDir::currentPath()) {}
         ~CurrentDirectoryGuard() { QDir::setCurrent(oldDir); }
+        CurrentDirectoryGuard(const CurrentDirectoryGuard &) = delete;
+        CurrentDirectoryGuard &operator=(const CurrentDirectoryGuard &) = delete;
+        CurrentDirectoryGuard(CurrentDirectoryGuard &&) = delete;
+        CurrentDirectoryGuard &operator=(CurrentDirectoryGuard &&) = delete;
         const QString oldDir;
     } currentDirectoryGuard;
 

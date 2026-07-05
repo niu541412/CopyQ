@@ -85,9 +85,10 @@ bool matchesProperties(QObject *object, const QStringList &properties)
     for (auto it = properties.cbegin(); it != properties.cend(); ++it) {
         const QString key = it->section('=', 0, 0);
         const QString value = it->section('=', 1, 1);
-        if ( value.isEmpty() ) {
-            if ( object->objectName() != key && object->metaObject()->className() != key )
-                return false;
+        if ( value.isEmpty()
+             && object->objectName() != key
+             && object->metaObject()->className() != key ) {
+            return false;
         }
 
         const QVariant propValue = object->property(key.toUtf8());
@@ -141,7 +142,7 @@ public:
         Failed
     };
 
-    KeyClicker(QObject *parent)
+    explicit KeyClicker(QObject *parent)
         : QObject(parent)
     {
         for (const auto w : qApp->topLevelWidgets()) {
@@ -258,7 +259,7 @@ public:
                 return;
             }
             // Don't block while processing the events.
-            runAfterInterval(delay, [=](){
+            runAfterInterval(delay, [source, keys, widgetName, action](){
                 if (!checkEventTarget(source, keys, widgetName, "mouse"))
                     return;
 
@@ -314,7 +315,7 @@ public:
             const auto key = static_cast<uint>(shortcut[0].toCombined());
             const QPointer<QWidget> target = widget;
             // Avoid blocking on modal dialogs
-            runAfterInterval(0, [=](){
+            runAfterInterval(0, [target, widgetName, key](){
                 if (!target || !target->isVisible()) {
                     qCCritical(plugin) << "Target no longer valid:" << widgetName;
                     return;
@@ -336,7 +337,7 @@ public:
         m_expectedWidgetName = expectedWidgetName;
 
         // Don't stop when modal window is open.
-        runAfterInterval(delay, [=](){ keyClicks(keys, delay, retry); });
+        runAfterInterval(delay, [this, keys, delay, retry](){ keyClicks(keys, delay, retry); });
     }
 
     int status(bool forceRetrieve) {
@@ -467,7 +468,7 @@ QVariant ItemTestsLoader::scriptCallback(const QVariantList &arguments)
         const QString expectedWidgetName = arguments.value(1).toString();
         const QString keys = arguments.value(2).toString();
         const int delay = arguments.value(3).toInt();
-        const QRegularExpression re = QRegularExpression(
+        const auto re = QRegularExpression(
             QString(expectedWidgetName)
             .replace(QLatin1String("<"), QLatin1String(".*<.*"))
         );
