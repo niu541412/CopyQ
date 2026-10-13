@@ -230,6 +230,7 @@ private slots:
     void trayPaste();
     void trayShowHideAction();
     void trayMenuToggleRapid();
+    void trayMenuFitsScreen();
 
     void pasteNext();
 
@@ -243,6 +244,12 @@ private slots:
     void envVariablePaths();
 
     void configTabs();
+
+    void framelessWindowShowsSizeGrip();
+    void menuBarShortcutShowsHiddenMenuBar();
+    void menuBarMnemonicOpensMenuOfHiddenMenuBar();
+    void menuBarContextMenuShowsMenuBar();
+    void menuBarContextMenuWithoutItems();
 
     void selectedItems();
 

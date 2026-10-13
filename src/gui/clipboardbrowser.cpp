@@ -867,8 +867,14 @@ void ClipboardBrowser::onEditorNeedsChangeClipboard(const QByteArray &bytes, con
 
 void ClipboardBrowser::contextMenuEvent(QContextMenuEvent *event)
 {
-    if ( isInternalEditorOpen() || selectedIndexes().isEmpty() )
+    if ( isInternalEditorOpen() )
         return;
+
+    // Let the main window offer its own menu when there is no item menu.
+    if ( selectedIndexes().isEmpty() ) {
+        event->ignore();
+        return;
+    }
 
     QPoint pos = event->globalPos();
     emit showContextMenu(pos);
@@ -1014,6 +1020,10 @@ void ClipboardBrowser::mousePressEvent(QMouseEvent *event)
     }
 
     QListView::mousePressEvent(event);
+
+    // Let the main window handle clicks on the empty area (moves frameless window).
+    if ( !indexAt(event->pos()).isValid() )
+        event->ignore();
 }
 
 void ClipboardBrowser::mouseReleaseEvent(QMouseEvent *event)

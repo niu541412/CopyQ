@@ -33,6 +33,7 @@
 #include "gui/configurationmanager.h"
 #include "gui/encryptionpassword.h"
 #include "gui/geometry.h"
+#include "gui/hiddenmenubar.h"
 #include "gui/importexportdialog.h"
 #include "gui/iconfactory.h"
 #include "gui/iconfactory.h"
@@ -76,14 +77,17 @@
 #include <QMessageBox>
 #include <QMimeData>
 #include <QModelIndex>
+#include <QMouseEvent>
 #include <QPushButton>
 #include <QSaveFile>
 #include <QShortcut>
+#include <QSizeGrip>
 #include <QSystemTrayIcon>
 #include <QTimer>
 #include <QToolBar>
 #include <QUrl>
 #include <QVector>
+#include <QWindow>
 
 #include <algorithm>
 #include <memory>
@@ -994,7 +998,7 @@ void MainWindow::createMenu()
     menu->addSeparator();
 
     // - preferences
-    createAction( Actions::File_Preferences, &MainWindow::openPreferences, menu );
+    QAction *preferencesAction = createAction( Actions::File_Preferences, &MainWindow::openPreferences, menu );
 
     // - commands
     createAction( Actions::File_Commands, &MainWindow::openCommands, menu );
@@ -1021,7 +1025,7 @@ void MainWindow::createMenu()
     menu->addSeparator();
 
     // - exit
-    createAction( Actions::File_Exit, &MainWindow::exit, menu );
+    QAction *exitAction = createAction( Actions::File_Exit, &MainWindow::exit, menu );
 
     // Edit
     menu = menubar->addMenu( tr("&Edit") );
@@ -1084,6 +1088,10 @@ void MainWindow::createMenu()
 
     // Open Item Menu
     createAction( Actions::ItemMenu, &MainWindow::showContextMenu, nullptr );
+
+    // Show Menu Bar (not in the menu bar: for when the menu bar is hidden)
+    QAction *showMenuBarAction = createAction( Actions::Misc_ShowMenuBar, &MainWindow::showMenuBar, nullptr );
+    m_menuBarStandIns = {showMenuBarAction, preferencesAction, exitAction};
 
     for (auto subMenu : menuBar()->findChildren<QMenu*>()) {
         connect( subMenu, &QMenu::aboutToShow,
@@ -1205,6 +1213,9 @@ void MainWindow::updateContextMenuTimeout()
     addItemAction( Actions::Item_MoveDown, this, &MainWindow::moveDown );
     addItemAction( Actions::Item_MoveToTop, this, &MainWindow::moveToTop );
     addItemAction( Actions::Item_MoveToBottom, this, &MainWindow::moveToBottom );
+
+    if (m_hiddenMenuBar)
+        m_hiddenMenuBar->addFallbackActions(m_menuItem);
 
     updateToolBar();
     updateActionShortcuts();
@@ -1414,12 +1425,13 @@ void MainWindow::showContextMenuAt(QPoint position)
 void MainWindow::showContextMenu()
 {
     auto c = browser();
-    if (!c)
+    const auto index = c ? c->currentIndex() : QModelIndex();
+    if ( !index.isValid() ) {
+        const QRect rect = centralWidget()->rect();
+        if (m_hiddenMenuBar)
+            m_hiddenMenuBar->showFallbackMenu( centralWidget()->mapToGlobal(rect.center()) );
         return;
-
-    const auto index = c->currentIndex();
-    if ( !index.isValid() )
-        return;
+    }
 
     const auto itemRect = c->visualRect(index);
     const auto viewportPosition = itemRect.center();
@@ -2900,6 +2912,48 @@ bool MainWindow::eventFilter(QObject *object, QEvent *ev)
     return false;
 }
 
+void MainWindow::mousePressEvent(QMouseEvent *event)
+{
+    if ( m_sizeGrip && m_sizeGrip->isVisible() && event->button() == Qt::LeftButton ) {
+        // Without the title bar this is the only way to move the window.
+        if ( QWindow *window = windowHandle() ) {
+            if ( window->startSystemMove() ) {
+                event->accept();
+                return;
+            }
+        }
+    }
+
+    QMainWindow::mousePressEvent(event);
+}
+
+void MainWindow::updateSizeGrip(bool frameless)
+{
+    if (!frameless) {
+        if (m_sizeGrip)
+            m_sizeGrip->deleteLater();
+        m_sizeGrip = nullptr;
+        return;
+    }
+
+    if (!m_sizeGrip) {
+        m_sizeGrip = new QSizeGrip(this);
+        m_sizeGrip->setObjectName("size_grip");
+    }
+    placeSizeGrip();
+    m_sizeGrip->show();
+    m_sizeGrip->raise();
+}
+
+void MainWindow::placeSizeGrip()
+{
+    if (!m_sizeGrip)
+        return;
+
+    const QSize size = m_sizeGrip->sizeHint();
+    m_sizeGrip->setGeometry( QRect(QPoint(width() - size.width(), height() - size.height()), size) );
+}
+
 void MainWindow::keyPressEvent(QKeyEvent *event)
 {
     const int key = event->key();
@@ -3027,6 +3081,9 @@ bool MainWindow::event(QEvent *event)
         }
     }
 
+    if (type == QEvent::Resize)
+        placeSizeGrip();
+
     if (type == QEvent::Enter) {
         if ( !isActiveWindow() )
             updateFocusWindows();
@@ -3131,6 +3188,19 @@ void MainWindow::loadSettings(QSettings &settings, AppConfig *appConfig)
     m_options.hideTabs = appConfig->option<Config::hide_tabs>();
     setHideTabs(m_options.hideTabs);
 
+    m_options.hideMenuBar = appConfig->option<Config::hide_menu_bar>();
+    if (m_options.hideMenuBar && !m_hiddenMenuBar) {
+        m_hiddenMenuBar = new HiddenMenuBar(this);
+        m_hiddenMenuBar->setFallbackActions(m_menuBarStandIns);
+        m_hiddenMenuBar->setEnabled(true);
+        connect( m_hiddenMenuBar, &HiddenMenuBar::collapsedChanged,
+                 this, [this]() { updateContextMenu(0); } );
+    } else if (!m_options.hideMenuBar && m_hiddenMenuBar) {
+        m_hiddenMenuBar->setEnabled(false);
+        m_hiddenMenuBar->deleteLater();
+        m_hiddenMenuBar = nullptr;
+    }
+
     bool hideToolbar = appConfig->option<Config::hide_toolbar>();
     clearActions(m_toolBar);
     m_toolBar->setHidden(hideToolbar);
@@ -3149,8 +3219,10 @@ void MainWindow::loadSettings(QSettings &settings, AppConfig *appConfig)
         dialogFlags.apply();
     }
     flags.set(Qt::Tool, appConfig->option<Config::hide_main_window_in_task_bar>());
-    flags.set(Qt::FramelessWindowHint, appConfig->option<Config::frameless_window>());
+    const bool frameless = appConfig->option<Config::frameless_window>();
+    flags.set(Qt::FramelessWindowHint, frameless);
     flags.apply();
+    updateSizeGrip(frameless);
 
     Q_ASSERT( ui->tabWidget->count() > 0 );
 
@@ -4220,6 +4292,12 @@ void MainWindow::showItemContent()
     const QModelIndex current = c->currentIndex();
     if ( current.isValid() )
         openDialog<ClipboardDialog>(current, c->model(), this);
+}
+
+void MainWindow::showMenuBar()
+{
+    if (m_hiddenMenuBar)
+        m_hiddenMenuBar->show();
 }
 
 void MainWindow::openPreferences()
