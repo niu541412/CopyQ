@@ -48,22 +48,46 @@ enum {
 };
 }
 
+// https://wiki.qt.io/Elided_Label
 class ElidedLabel final : public QLabel
 {
 public:
-    explicit ElidedLabel(const QString &text, QWidget *parent = nullptr)
-        : QLabel(text, parent)
-    {
-    }
+    using QLabel::QLabel;
 
 protected:
-    void paintEvent(QPaintEvent *) override
+    void resizeEvent(QResizeEvent *e)
     {
-        QPainter p(this);
-        QFontMetrics fm = fontMetrics();
-        const QString elidedText = fm.elidedText(text(), Qt::ElideMiddle, rect().width());
-        p.drawText(rect(), Qt::AlignCenter, elidedText);
+        QLabel::resizeEvent(e);
+        m_cachedText.clear();
     }
+
+    void paintEvent(QPaintEvent *e)
+    {
+        updateCachedTexts();
+        QLabel::setText(m_cachedElidedText);
+        QLabel::paintEvent(e);
+        QLabel::setText(m_cachedText);
+    }
+
+    private:
+        void updateCachedTexts()
+        {
+            const auto txt = text();
+            if (m_cachedText == txt)
+                return;
+            m_cachedText = txt;
+            const QFontMetrics fm(fontMetrics());
+            m_cachedElidedText = fm.elidedText(
+                text(), Qt::ElideMiddle, width(), Qt::TextShowMnemonic);
+            if (!m_cachedText.isEmpty()) {
+                const QString showFirstCharacter = m_cachedText.at(0) + QStringLiteral("...");
+                setMinimumWidth(fm.horizontalAdvance(showFirstCharacter) + 1);
+            }
+        }
+
+private:
+    QString m_cachedElidedText;
+    QString m_cachedText;
 };
 
 bool isTagValid(const ItemTags::Tag &tag)
@@ -76,6 +100,9 @@ bool isTagValid(const ItemTags::Tag &tag)
 
 QString serializeColor(const QColor &color)
 {
+    if (!color.isValid())
+        return {};
+
     if (color.alpha() == 255)
         return color.name();
 
@@ -84,21 +111,6 @@ QString serializeColor(const QColor &color)
             .arg(color.green())
             .arg(color.blue())
             .arg(color.alpha());
-}
-
-QColor deserializeColor(const QString &colorName)
-{
-    if ( colorName.startsWith("rgba(") ) {
-        QStringList list = colorName.mid(5, colorName.indexOf(')') - 5).split(',');
-        int r = list.value(0).toInt();
-        int g = list.value(1).toInt();
-        int b = list.value(2).toInt();
-        int a = list.value(3).toInt();
-
-        return QColor(r, g, b, a);
-    }
-
-    return QColor(colorName);
 }
 
 void setColorIcon(QPushButton *button, const QColor &color)
@@ -182,18 +194,18 @@ QString unescapeTagField(const QString &field)
 
 void initTagWidget(QWidget *tagWidget, const ItemTags::Tag &tag, const QFont &font)
 {
+    tagWidget->setObjectName("tagWidget");
     tagWidget->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum);
-    tagWidget->setStyleSheet(
-                "* {"
-                ";background:transparent"
-                ";color:" + serializeColor(tag.color) +
-                ";" + tag.styleSheet +
-                "}"
-                "QLabel {"
-                ";background:transparent"
-                ";border:none"
-                "}"
-            );
+    const QColor color = tag.color.isValid() ? tag.color : tagWidget->palette().color(QPalette::PlaceholderText);
+    const QString styleSheet = QStringLiteral(
+        "* {"
+        ";border:none"
+        ";background:transparent"
+        ";color: %1"
+        ";%2"
+        "}"
+    ).arg(serializeColor(color), tag.styleSheet);
+    tagWidget->setStyleSheet(styleSheet);
 
     auto layout = new QHBoxLayout(tagWidget);
     const int x = QFontMetrics(font).height() / 6;
@@ -797,7 +809,7 @@ void ItemTagsLoader::onAllTableWidgetItemsChanged()
 QString ItemTagsLoader::serializeTag(const ItemTagsLoader::Tag &tag)
 {
     return escapeTagField(tag.name)
-            + ";;" + escapeTagField(tag.color)
+            + ";;" + escapeTagField(serializeColor(tag.color))
             + ";;" + escapeTagField(tag.icon)
             + ";;" + escapeTagField(tag.styleSheet)
             + ";;" + escapeTagField(tag.match)
@@ -810,7 +822,7 @@ ItemTagsLoader::Tag ItemTagsLoader::deserializeTag(const QString &tagText)
 
     Tag tag;
     tag.name = unescapeTagField(tagFields.value(0));
-    tag.color = unescapeTagField(tagFields.value(1));
+    tag.color = QColor::fromString(unescapeTagField(tagFields.value(1)));
     tag.icon = unescapeTagField(tagFields.value(2));
     tag.styleSheet = unescapeTagField(tagFields.value(3));
     tag.match = unescapeTagField(tagFields.value(4));
@@ -836,10 +848,6 @@ ItemTagsLoader::Tags ItemTagsLoader::toTags(const QStringList &tagList)
             }
         } else {
             tag.name = tagName;
-
-            // Get default tag style from theme.
-            const QSettings settings;
-            tag.color = settings.value("Theme/num_fg").toString();
         }
 
         tags.append(tag);
@@ -868,9 +876,7 @@ void ItemTagsLoader::addTagToSettingsTable(const ItemTagsLoader::Tag &tag)
     t->setItem( row, tagsTableColumns::lock, lock );
 
     auto colorButton = new QPushButton(t);
-    const QColor color = tag.color.isEmpty()
-            ? QColor::fromRgb(50, 50, 50)
-            : deserializeColor(tag.color);
+    const QColor color = tag.color;
     setColorIcon(colorButton, color);
     t->setCellWidget(row, tagsTableColumns::color, colorButton);
     connect(colorButton, &QAbstractButton::clicked, this, &ItemTagsLoader::onColorButtonClicked);
@@ -889,9 +895,7 @@ ItemTagsLoader::Tag ItemTagsLoader::tagFromTable(int row)
 
     Tag tag;
     tag.name = t->item(row, tagsTableColumns::name)->text();
-    const QColor color =
-            cellWidgetProperty(t, row, tagsTableColumns::color, propertyColor).value<QColor>();
-    tag.color = serializeColor(color);
+    tag.color = cellWidgetProperty(t, row, tagsTableColumns::color, propertyColor).value<QColor>();
     tag.icon = cellWidgetProperty(t, row, tagsTableColumns::icon, "currentIcon").toString();
     tag.styleSheet = t->item(row, tagsTableColumns::styleSheet)->text();
     tag.match = t->item(row, tagsTableColumns::match)->text();
